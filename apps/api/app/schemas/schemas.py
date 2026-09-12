@@ -1,0 +1,301 @@
+"""Pydantic schemas for data validation and API payloads."""
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+# Base config
+class SchemaBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- AUTH SCHEMAS ---
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, description="Argon2id hashed on server")
+    full_name: str = Field(..., min_length=2, max_length=255)
+    organization_name: Optional[str] = "Default Organization"
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    email: str
+    full_name: str
+    role: str
+    organization_id: Optional[str] = None
+
+
+class UserOut(SchemaBase):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    is_verified: bool
+    created_at: datetime
+
+
+class UserRoleUpdate(BaseModel):
+    role: str = Field(..., description="SUPER_ADMIN, ADMIN, EDITOR, AUTHOR, VIEWER")
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
+# --- ORGANIZATION SCHEMAS ---
+class OrganizationCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=255)
+
+
+class OrganizationOut(SchemaBase):
+    id: str
+    name: str
+    slug: str
+    created_at: datetime
+
+
+# --- PROJECT SCHEMAS ---
+class ProjectCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=255)
+    description: Optional[str] = None
+    brand_voice: Optional[str] = "Professional, authoritative, engaging"
+    target_audience: Optional[str] = "Tech professionals and decision makers"
+    industry: Optional[str] = "Technology"
+    language: str = "en"
+    country: str = "US"
+    tone: Optional[str] = "Informative"
+    content_guidelines: Optional[str] = None
+    seo_settings: Dict[str, Any] = Field(default_factory=dict)
+    publishing_settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    brand_voice: Optional[str] = None
+    target_audience: Optional[str] = None
+    industry: Optional[str] = None
+    language: Optional[str] = None
+    country: Optional[str] = None
+    tone: Optional[str] = None
+    content_guidelines: Optional[str] = None
+    seo_settings: Optional[Dict[str, Any]] = None
+    publishing_settings: Optional[Dict[str, Any]] = None
+
+
+class ProjectOut(SchemaBase):
+    id: str
+    organization_id: str
+    owner_id: Optional[str]
+    name: str
+    description: Optional[str]
+    brand_voice: Optional[str]
+    target_audience: Optional[str]
+    industry: Optional[str]
+    language: str
+    country: str
+    tone: Optional[str]
+    content_guidelines: Optional[str]
+    seo_settings: Dict[str, Any]
+    publishing_settings: Dict[str, Any]
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- ARTICLE SCHEMAS ---
+class ArticleCreateWizard(BaseModel):
+    project_id: str
+    topic: str = Field(..., min_length=5, description="Primary topic or subject")
+    target_audience: Optional[str] = None
+    content_goal: Optional[str] = "Educate, build authority, and rank for target search terms"
+    research_depth: str = Field(default="standard", description="brief, standard, deep")
+    target_keywords: List[str] = Field(default_factory=list)
+    preferred_tone: Optional[str] = None
+
+
+class ArticleUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None
+    status: Optional[str] = None
+    change_summary: Optional[str] = "Manual update by user"
+
+
+class ArticleVersionOut(SchemaBase):
+    id: str
+    article_id: str
+    version_number: int
+    title: str
+    content: str
+    change_summary: Optional[str]
+    created_by: str
+    created_at: datetime
+
+
+class ArticleOut(SchemaBase):
+    id: str
+    project_id: str
+    author_id: Optional[str]
+    title: str
+    slug: str
+    topic: str
+    content: str
+    summary: Optional[str]
+    status: str
+    current_version: int
+    target_keywords: List[str]
+    estimated_reading_time: int
+    word_count: int
+    total_cost_usd: float
+    generated_by_provider: Optional[str]
+    generated_by_model: Optional[str]
+    content_strategy: Dict[str, Any]
+    outline: Dict[str, Any]
+    critic_evaluation: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- SOURCE & CLAIM SCHEMAS ---
+class SourceOut(SchemaBase):
+    id: str
+    article_id: str
+    title: str
+    url: str
+    domain: str
+    source_type: str
+    credibility_score: float
+    snippet: Optional[str]
+    is_verified: bool
+    created_at: datetime
+
+
+class ClaimOut(SchemaBase):
+    id: str
+    article_id: str
+    source_id: Optional[str]
+    claim_text: str
+    status: str
+    confidence: float
+    notes: Optional[str]
+    created_at: datetime
+
+
+# --- AGENT & WORKFLOW SCHEMAS ---
+class AgentRunOut(SchemaBase):
+    id: str
+    article_id: str
+    agent_name: str
+    step_number: int
+    status: str
+    input_payload: Dict[str, Any]
+    output_payload: Dict[str, Any]
+    error_message: Optional[str]
+    duration_ms: int
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+class WorkflowStartRequest(BaseModel):
+    article_id: str
+
+
+# --- PROVIDER & MODEL SCHEMAS ---
+class ProviderStatusOut(BaseModel):
+    name: str
+    display_name: str
+    is_active: bool
+    is_enabled: bool
+    default_model: str
+    connection_status: str  # CONNECTED, NOT_CONFIGURED, ERROR
+    last_health_check: Optional[datetime] = None
+    available_models: List[str] = Field(default_factory=list)
+
+
+class ProviderConfigureRequest(BaseModel):
+    provider_name: str
+    api_key: str = Field(..., min_length=1)
+    default_model: Optional[str] = None
+
+
+class SetActiveProviderRequest(BaseModel):
+    provider_name: str
+    model_name: Optional[str] = None
+
+
+# --- SEO SCHEMAS ---
+class SEOAnalysisOut(SchemaBase):
+    id: str
+    article_id: str
+    score: int
+    meta_title: str
+    meta_description: str
+    slug: str
+    focus_keywords: List[str]
+    heading_hierarchy_check: bool
+    readability_score: float
+    faq_items: List[Dict[str, str]]
+    schema_markup: Dict[str, Any]
+    recommendations: List[str]
+    created_at: datetime
+
+
+# --- PUBLISHING SCHEMAS ---
+class WordPressPublishRequest(BaseModel):
+    article_id: str
+    site_url: str
+    username: str
+    application_password: str
+    target_status: str = "draft"  # draft, publish
+
+
+class PublishingJobOut(SchemaBase):
+    id: str
+    article_id: str
+    platform: str
+    target_status: str
+    scheduled_at: Optional[datetime]
+    published_url: Optional[str]
+    status: str
+    error_message: Optional[str]
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+# --- AUDIT & ANALYTICS SCHEMAS ---
+class AuditLogOut(SchemaBase):
+    id: str
+    user_id: Optional[str]
+    organization_id: Optional[str]
+    action: str
+    resource_type: str
+    resource_id: Optional[str]
+    details: Dict[str, Any]
+    ip_address: Optional[str]
+    created_at: datetime
+
+
+class AnalyticsSummaryOut(BaseModel):
+    total_users: int
+    active_users: int
+    total_projects: int
+    total_articles: int
+    published_articles: int
+    total_llm_calls: int
+    total_cost_usd: float
+    provider_usage: Dict[str, int]
+    agent_success_rate: float
