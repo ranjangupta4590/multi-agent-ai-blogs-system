@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: blog_user
       POSTGRES_PASSWORD: blog_secure_password_replace_in_prod
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -49,6 +49,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: change-this-to-a-very-secure-random-32-byte-hex-string-for-prod
       ENVIRONMENT: production
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      RESET_INITIAL_ADMIN_PASSWORD: ${RESET_INITIAL_ADMIN_PASSWORD:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

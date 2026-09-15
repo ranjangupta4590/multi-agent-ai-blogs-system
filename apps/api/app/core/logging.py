@@ -13,6 +13,7 @@ SECRET_PATTERNS = [
     re.compile(r"(\"password\"\s*:\s*\")[^\"]+(\")", re.IGNORECASE),
     re.compile(r"(\"secret\"\s*:\s*\")[^\"]+(\")", re.IGNORECASE),
     re.compile(r"(api_key=)[^&\s]+", re.IGNORECASE),
+    re.compile(r"([?&]key=)[^&\s\"]+", re.IGNORECASE),
 ]
 
 
@@ -61,6 +62,9 @@ def setup_logging(level: int = logging.INFO) -> None:
     root_logger.setLevel(level)
     # Clear existing handlers
     root_logger.handlers = [handler]
+    # Never log full outbound provider URLs; some providers place credentials in query parameters.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 logger = logging.getLogger("ai_blog_platform")

@@ -37,9 +37,23 @@ function ArticlesListContent() {
     }
   }, [selectedProjectId]);
 
-  const filteredArticles = articles.filter(
-    (a) => filterStatus === "ALL" || a.status === filterStatus
-  );
+  const filteredArticles = articles.filter((a) => filterStatus === "ALL" || a.status === filterStatus);
+
+  const stopGeneration = async (article: Article) => {
+    if (!confirm(`Stop generation for "${article.title}" and return it to Draft?`)) return;
+    try {
+      const updated = await api.cancelArticleGeneration(article.id);
+      setArticles((current) => current.map((item) => item.id === article.id ? updated : item));
+    } catch (err: any) { alert(err.message || "Unable to stop generation."); }
+  };
+
+  const deleteArticle = async (article: Article) => {
+    if (!confirm(`Delete "${article.title}" permanently? This cannot be undone.`)) return;
+    try {
+      await api.deleteArticle(article.id);
+      setArticles((current) => current.filter((item) => item.id !== article.id));
+    } catch (err: any) { alert(err.message || "Unable to delete article."); }
+  };
 
   return (
     <div>
@@ -147,9 +161,12 @@ function ArticlesListContent() {
                     {art.generated_by_provider || "—"}
                   </td>
                   <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                    <Link href={`/articles/${art.id}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                      Workspace →
-                    </Link>
+                    <div className="article-action-group">
+                      {art.status === "DRAFT" && <Link href={`/articles/${art.id}/workflow`} className="article-action article-action-generate"><span aria-hidden="true">✦</span> Generate</Link>}
+                      {art.status === "GENERATING" && <button onClick={() => stopGeneration(art)} className="article-action article-action-stop"><span aria-hidden="true">■</span> Stop</button>}
+                      <Link href={`/articles/${art.id}`} className="article-action article-action-workspace">Workspace <span aria-hidden="true">→</span></Link>
+                      <button onClick={() => deleteArticle(art)} className="article-action article-action-delete article-action-icon" title="Delete article" aria-label={`Delete ${art.title}`}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 3v6h2v-6h-2Zm4 0v6h2v-6h-2Z"/></svg></button>
+                    </div>
                   </td>
                 </tr>
               ))}

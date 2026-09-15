@@ -1,5 +1,6 @@
 """Google Gemini provider adapter implementing LLMProvider."""
 import json
+import asyncio
 import time
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 import httpx
@@ -28,7 +29,7 @@ class GeminiProvider(LLMProvider):
         return "Gemini"
 
     def get_models(self) -> List[str]:
-        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"]
+        return []
 
     def _convert_messages(self, messages: List[LLMMessage]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
         system_instruction = None
@@ -53,7 +54,9 @@ class GeminiProvider(LLMProvider):
         options: Optional[LLMOptions] = None
     ) -> LLMResponse:
         opts = options or LLMOptions()
-        model = opts.model or "gemini-1.5-pro"
+        model = opts.model
+        if not model:
+            raise ProviderUnavailableError("Gemini", "A user-configured model is required.")
         start_time = time.time()
 
         system_instruction, contents = self._convert_messages(messages)
@@ -71,12 +74,27 @@ class GeminiProvider(LLMProvider):
 
         url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
 
+        retryable_statuses = {429, 500, 502, 503, 504}
+        max_attempts = 3
         try:
             async with httpx.AsyncClient(timeout=opts.timeout) as client:
-                resp = await client.post(url, json=payload)
-                if resp.status_code != 200:
-                    logger.error(f"Gemini error {resp.status_code}: {resp.text}")
-                    raise ProviderUnavailableError("Gemini", f"API returned status {resp.status_code}")
+                for attempt in range(1, max_attempts + 1):
+                    resp = await client.post(url, json=payload)
+                    if resp.status_code == 200:
+                        break
+                    if resp.status_code in retryable_statuses and attempt < max_attempts:
+                        delay_seconds = 2 ** (attempt - 1)
+                        logger.warning(
+                            "Gemini returned transient status %s; retrying request %s/%s in %ss",
+                            resp.status_code, attempt, max_attempts, delay_seconds
+                        )
+                        await asyncio.sleep(delay_seconds)
+                        continue
+                    logger.error("Gemini generation failed with status %s", resp.status_code)
+                    raise ProviderUnavailableError(
+                        "Gemini",
+                        f"API returned status {resp.status_code} after {attempt} attempt(s)"
+                    )
 
                 data = resp.json()
                 candidate = data.get("candidates", [{}])[0]

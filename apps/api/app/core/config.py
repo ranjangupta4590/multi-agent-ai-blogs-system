@@ -28,6 +28,11 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./blogs_platform.db"
+    # Initial administrator (server-side only; never returned by an API)
+    INITIAL_ADMIN_EMAIL: Optional[str] = None
+    INITIAL_ADMIN_PASSWORD: Optional[str] = Field(default=None, min_length=12)
+    RESET_INITIAL_ADMIN_PASSWORD: bool = False
+
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -47,10 +52,6 @@ class Settings(BaseSettings):
     XAI_API_KEY: Optional[str] = None
 
     # LLM Provider Default Models
-    DEFAULT_OPENAI_MODEL: str = "gpt-4o"
-    DEFAULT_GEMINI_MODEL: str = "gemini-1.5-pro"
-    DEFAULT_ANTHROPIC_MODEL: str = "claude-3-5-sonnet-20241022"
-    DEFAULT_GROK_MODEL: str = "grok-2"
 
     # Active Provider Strategy
     ACTIVE_PROVIDER: Optional[str] = None  # If None, automatically detected

@@ -8,6 +8,7 @@ from app.core.rbac import ROLE_PERMISSIONS, RoleEnum, Permission
 from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import engine, AsyncSessionLocal
+from app.ai.gateway.gateway import llm_gateway
 from app.models.entities import (
     User,
     Organization,
@@ -111,35 +112,37 @@ async def init_db(session: AsyncSession) -> None:
         session.add(org)
         await session.flush()
 
-    # 3. Seed Default Superadmin
-    res = await session.execute(select(User).where(User.email == "admin@example.com"))
-    admin = res.scalar_one_or_none()
-    if not admin:
-        admin = User(
-            email="admin@example.com",
-            hashed_password=hash_password("AdminPass123!"),
-            full_name="Platform Administrator",
-            is_active=True,
-            is_verified=True,
-            role=RoleEnum.SUPER_ADMIN.value,
-        )
-        session.add(admin)
-        await session.flush()
-
-        # Add admin to default org
-        member = OrganizationMember(
-            organization_id=org.id,
-            user_id=admin.id,
-            role=RoleEnum.SUPER_ADMIN.value
-        )
-        session.add(member)
+    # 3. Bootstrap administrator from server-only environment variables.
+    # No default password is embedded in source code or sent to the public UI.
+    if settings.INITIAL_ADMIN_EMAIL and settings.INITIAL_ADMIN_PASSWORD:
+        admin_email = settings.INITIAL_ADMIN_EMAIL.lower()
+        res = await session.execute(select(User).where(User.email == admin_email))
+        admin = res.scalar_one_or_none()
+        if not admin:
+            admin = User(
+                email=admin_email,
+                hashed_password=hash_password(settings.INITIAL_ADMIN_PASSWORD),
+                full_name="Platform Administrator",
+                is_active=True,
+                is_verified=True,
+                role=RoleEnum.SUPER_ADMIN.value,
+            )
+            session.add(admin)
+            await session.flush()
+            session.add(OrganizationMember(organization_id=org.id, user_id=admin.id, role=RoleEnum.SUPER_ADMIN.value))
+        elif settings.RESET_INITIAL_ADMIN_PASSWORD:
+            admin.hashed_password = hash_password(settings.INITIAL_ADMIN_PASSWORD)
+            admin.is_active = True
+            logger.warning("Bootstrap administrator password was reset from server-side configuration.")
+    else:
+        logger.warning("No bootstrap administrator configured. Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD server-side.")
 
     # 4. Seed Provider records
     providers_seed = [
-        ("OpenAI", "OpenAI (GPT-4o)", "gpt-4o", settings.OPENAI_API_KEY is not None),
-        ("Gemini", "Google Gemini (1.5 Pro)", "gemini-1.5-pro", settings.GEMINI_API_KEY is not None),
-        ("Claude", "Anthropic Claude (3.5 Sonnet)", "claude-3-5-sonnet-20241022", settings.ANTHROPIC_API_KEY is not None),
-        ("Grok", "xAI Grok (Grok-2)", "grok-2", settings.XAI_API_KEY is not None),
+        ("OpenAI", "OpenAI", "", settings.OPENAI_API_KEY is not None),
+        ("Gemini", "Google Gemini", "", settings.GEMINI_API_KEY is not None),
+        ("Claude", "Anthropic Claude", "", settings.ANTHROPIC_API_KEY is not None),
+        ("Grok", "xAI Grok", "", settings.XAI_API_KEY is not None),
     ]
 
     has_active = False
@@ -208,3 +211,19 @@ async def create_tables_and_seed() -> None:
 
     async with AsyncSessionLocal() as session:
         await init_db(session)
+        # Reapply database-backed model selections after every API start or hot reload.
+        # Provider credentials still come only from server-side environment/secrets.
+        result = await session.execute(select(LLMProviderModel))
+        providers = list(result.scalars().all())
+        for provider in providers:
+            if provider.name in llm_gateway.get_configured_providers() and provider.default_model.strip():
+                llm_gateway.set_provider_model(provider.name, provider.default_model)
+
+        active_provider = next((provider for provider in providers if provider.is_active), None)
+        if (
+            active_provider
+            and active_provider.name in llm_gateway.get_configured_providers()
+            and active_provider.default_model.strip()
+        ):
+            llm_gateway.set_active_provider(active_provider.name, active_provider.default_model)
+        logger.info("Persisted provider model selections restored into the LLM gateway.")

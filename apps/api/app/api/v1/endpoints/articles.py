@@ -1,14 +1,11 @@
 """Article management and AI generation endpoints with SSE event streaming."""
-import asyncio
-import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Request, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rbac import Permission
 from app.db.session import get_db
-from app.models.entities import Claim, SEOAnalysis, Source, User
+from app.models.entities import Article, Claim, SEOAnalysis, Source, User
 from app.schemas.schemas import (
     ArticleCreateWizard,
     ArticleOut,
@@ -47,6 +44,22 @@ async def create_article_draft(
     service = ArticleService(db)
     return await service.create_article_draft(req, current_user, org_id)
 
+
+@router.post("/{article_id}/cancel", response_model=ArticleOut)
+async def cancel_article_generation(article_id: str, request: Request, current_user: User = Depends(require_permission(Permission.ARTICLES_UPDATE)), db: AsyncSession = Depends(get_db)):
+    service = ArticleService(db)
+    article = await service.get_article(article_id, current_user, request.state.organization_id)
+    article.status = "DRAFT"
+    await db.commit()
+    await db.refresh(article)
+    return article
+
+@router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_article(article_id: str, request: Request, current_user: User = Depends(require_permission(Permission.ARTICLES_DELETE)), db: AsyncSession = Depends(get_db)):
+    service = ArticleService(db)
+    article = await service.get_article(article_id, current_user, request.state.organization_id)
+    await db.delete(article)
+    await db.commit()
 
 @router.get("/{article_id}", response_model=ArticleOut)
 async def get_article(
@@ -160,30 +173,3 @@ async def get_article_seo(
     return res.scalar_one_or_none()
 
 
-@router.get("/{article_id}/events")
-async def stream_article_events(
-    article_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Server-Sent Events stream for real-time multi-agent execution display."""
-    async def event_generator():
-        steps = [
-            "ResearchPlanner", "Researcher", "SourceValidator", "ContentStrategist",
-            "OutlineAgent", "WriterAgent", "FactChecker", "SEOAgent",
-            "CriticAgent", "EditorAgent", "PublisherAgent"
-        ]
-        for idx, agent_name in enumerate(steps):
-            if await request.is_disconnected():
-                break
-            payload = {
-                "article_id": article_id,
-                "step_number": idx + 1,
-                "agent_name": agent_name,
-                "status": "COMPLETED",
-                "message": f"Agent {agent_name} executed successfully.",
-            }
-            yield f"data: {json.dumps(payload)}\n\n"
-            await asyncio.sleep(0.5)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")

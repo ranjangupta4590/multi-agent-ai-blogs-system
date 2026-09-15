@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Article, ArticleVersion, Claim, SEOAnalysis, Source } from "@/lib/types";
@@ -19,17 +21,11 @@ export default function ArticleEditorWorkspacePage() {
   const [seo, setSeo] = useState<SEOAnalysis | null>(null);
   const [versions, setVersions] = useState<ArticleVersion[]>([]);
   const [activeTab, setActiveTab] = useState<"sources" | "claims" | "seo" | "critic" | "versions">("sources");
+  const [contentMode, setContentMode] = useState<"markdown" | "preview">("markdown");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [showPublishModal, setShowPublishModal] = useState(false);
 
-  // WordPress Publish Modal State
-  const [wpSiteUrl, setWpSiteUrl] = useState("https://blog.example.com");
-  const [wpUsername, setWpUsername] = useState("wp_editor");
-  const [wpAppPassword, setWpAppPassword] = useState("");
-  const [wpStatus, setWpStatus] = useState("draft");
-  const [publishing, setPublishing] = useState(false);
 
   const loadAll = async () => {
     try {
@@ -88,7 +84,7 @@ export default function ArticleEditorWorkspacePage() {
         change_summary: "Approved by human editor",
       });
       setArticle(updated);
-      setFeedback({ type: "success", text: "Article approved! Ready for CMS publishing." });
+      setFeedback({ type: "success", text: "Article approved. You can now publish it to the public BlogPilot home page." });
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Failed to approve article" });
     } finally {
@@ -114,27 +110,20 @@ export default function ArticleEditorWorkspacePage() {
     }
   };
 
-  const handleWordPressPublish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPublishing(true);
+  const handlePublishPublic = async () => {
+    if (!confirm("Publish this approved article to the public BlogPilot home page?")) return;
+    setSaving(true);
     try {
-      const job = await api.publishWordPress({
-        article_id: articleId,
-        site_url: wpSiteUrl,
-        username: wpUsername,
-        application_password: wpAppPassword,
-        target_status: wpStatus,
+      const updated = await api.updateArticle(articleId, {
+        status: "PUBLISHED",
+        change_summary: "Published publicly on BlogPilot",
       });
-      setShowPublishModal(false);
-      setFeedback({
-        type: "success",
-        text: `Successfully dispatched to WordPress! Status: ${job.status}.`,
-      });
-      await loadAll();
+      setArticle(updated);
+      setFeedback({ type: "success", text: "Article is now public on the BlogPilot home page." });
     } catch (err: any) {
-      setFeedback({ type: "error", text: err.message || "WordPress publishing failed" });
+      setFeedback({ type: "error", text: err.message || "Failed to publish article" });
     } finally {
-      setPublishing(false);
+      setSaving(false);
     }
   };
 
@@ -182,9 +171,11 @@ export default function ArticleEditorWorkspacePage() {
             </button>
           )}
 
-          <button onClick={() => setShowPublishModal(true)} className="btn btn-primary" style={{ background: "var(--brand-gradient)" }}>
-            🚀 Publish to WordPress
-          </button>
+          {article.status === "APPROVED" && (
+            <button onClick={handlePublishPublic} disabled={saving} className="btn btn-primary" style={{ background: "var(--brand-gradient)" }}>
+              🌐 Publish to Public Blog
+            </button>
+          )}
         </div>
       </div>
 
@@ -199,9 +190,9 @@ export default function ArticleEditorWorkspacePage() {
       )}
 
       {/* Split-Screen Main Layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "24px", alignItems: "start" }}>
+      <div className="article-workspace-grid">
         {/* Left Pane: Rich Text / Markdown Editor */}
-        <div className="card" style={{ padding: "28px" }}>
+        <div className="card workspace-editor-pane" style={{ padding: "28px" }}>
           <div style={{ marginBottom: "16px" }}>
             <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>
               Article Title
@@ -216,26 +207,25 @@ export default function ArticleEditorWorkspacePage() {
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "4px" }}>
-              Content (Markdown Format)
-            </label>
-            <textarea
-              className="textarea"
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.9rem",
-                lineHeight: 1.6,
-                minHeight: "560px",
-                resize: "vertical",
-              }}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Content</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button type="button" onClick={() => setContentMode("markdown")} className="btn btn-secondary" style={{ padding: "5px 10px", fontSize: "0.78rem", background: contentMode === "markdown" ? "var(--brand-primary)" : "transparent", color: contentMode === "markdown" ? "#fff" : "var(--text-secondary)" }}>Markdown</button>
+                <button type="button" onClick={() => setContentMode("preview")} className="btn btn-secondary" style={{ padding: "5px 10px", fontSize: "0.78rem", background: contentMode === "preview" ? "var(--brand-primary)" : "transparent", color: contentMode === "preview" ? "#fff" : "var(--text-secondary)" }}>Preview</button>
+              </div>
+            </div>
+            {contentMode === "markdown" ? (
+              <textarea className="textarea" style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem", lineHeight: 1.6, minHeight: "560px", resize: "vertical" }} value={content} onChange={(e) => setContent(e.target.value)} />
+            ) : (
+              <div className="prose markdown-preview">
+                {content.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown> : <p style={{ color: "var(--text-muted)" }}>Nothing to preview yet.</p>}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Right Pane: AI Workspace Drawer */}
-        <div className="card" style={{ padding: "20px" }}>
+        <div className="card workspace-insights-pane" style={{ padding: "20px" }}>
           {/* Tabs header */}
           <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "12px", marginBottom: "16px", overflowX: "auto" }}>
             <button
@@ -446,7 +436,7 @@ export default function ArticleEditorWorkspacePage() {
                   Critic Quality Rating
                 </div>
                 <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--brand-primary)", marginTop: "4px" }}>
-                  {criticEval.score !== undefined ? `${criticEval.score}/10.0` : "8.8/10.0"}
+                  {criticEval.score !== undefined ? `${criticEval.score}/10.0` : "Pending"}
                 </div>
               </div>
 
@@ -507,80 +497,6 @@ export default function ArticleEditorWorkspacePage() {
         </div>
       </div>
 
-      {/* WordPress Publishing Modal */}
-      {showPublishModal && (
-        <div className="modal-overlay" onClick={() => setShowPublishModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ padding: "24px", borderBottom: "1px solid var(--border-subtle)" }}>
-              <h2 style={{ fontSize: "1.25rem", fontWeight: 700 }}>Publish to WordPress</h2>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                Syndicate article directly via WordPress REST API v2.
-              </p>
-            </div>
-
-            <form onSubmit={handleWordPressPublish} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  WordPress Site URL
-                </label>
-                <input
-                  type="url"
-                  required
-                  className="input"
-                  value={wpSiteUrl}
-                  onChange={(e) => setWpSiteUrl(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  Username
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="input"
-                  value={wpUsername}
-                  onChange={(e) => setWpUsername(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  Application Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  className="input"
-                  placeholder="xxxx xxxx xxxx xxxx"
-                  value={wpAppPassword}
-                  onChange={(e) => setWpAppPassword(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  Target Publishing Status
-                </label>
-                <select className="select" value={wpStatus} onChange={(e) => setWpStatus(e.target.value)}>
-                  <option value="draft">Save as WordPress Draft</option>
-                  <option value="publish">Publish Immediately to Live Site</option>
-                </select>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
-                <button type="button" onClick={() => setShowPublishModal(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={publishing} className="btn btn-primary">
-                  {publishing ? "Syndicating..." : "Confirm & Syndicate"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

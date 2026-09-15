@@ -195,6 +195,26 @@ class ClaimOut(SchemaBase):
     created_at: datetime
 
 
+# --- PUBLIC FEEDBACK SCHEMAS ---
+class CommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class CommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class CommentOut(SchemaBase):
+    id: str
+    article_id: str
+    author_id: str
+    author_name: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+
 # --- AGENT & WORKFLOW SCHEMAS ---
 class AgentRunOut(SchemaBase):
     id: str
@@ -228,8 +248,8 @@ class ProviderStatusOut(BaseModel):
 
 class ProviderConfigureRequest(BaseModel):
     provider_name: str
-    api_key: str = Field(..., min_length=1)
-    default_model: Optional[str] = None
+    api_key: Optional[str] = Field(default=None, min_length=1)
+    default_model: str = Field(..., min_length=1, max_length=255)
 
 
 class SetActiveProviderRequest(BaseModel):

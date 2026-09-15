@@ -41,10 +41,10 @@ export default function ProvidersSettingsPage() {
 
   const handleConfigureSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeModalProvider || !apiKeyInput.trim()) return;
+    if (!activeModalProvider) return;
     setSubmitting(true);
     try {
-      await api.configureProvider(activeModalProvider, apiKeyInput.trim(), selectedModel || undefined);
+      await api.configureProvider(activeModalProvider, apiKeyInput.trim() || undefined, selectedModel || undefined);
       setFeedback({ type: "success", text: `${activeModalProvider} credentials configured securely.` });
       setActiveModalProvider(null);
       setApiKeyInput("");
@@ -164,7 +164,7 @@ export default function ProvidersSettingsPage() {
                 </div>
 
                 <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "16px" }}>
-                  <div><strong>Credential:</strong> {isConnected ? "Configured securely (server-side)" : "Not configured"}</div>
+                  <div><strong>Credential:</strong> {isConnected ? "Configured securely" : "Not configured"}</div>
                   <div style={{ marginTop: "4px" }}><strong>Default Model:</strong> {p.default_model}</div>
                 </div>
 
@@ -237,20 +237,19 @@ export default function ProvidersSettingsPage() {
                 Configure {activeModalProvider}
               </h2>
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                Credentials are strictly stored server-side and never exposed to the client or logs.
+                Stored API keys are never displayed again. Leave the key field blank to keep the current server-side connection and update only the model.
               </p>
             </div>
 
             <form onSubmit={handleConfigureSubmit} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
               <div>
                 <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  API Key
+                  Replace API Key (optional)
                 </label>
                 <input
                   type="password"
-                  required
                   className="input"
-                  placeholder={`Enter ${activeModalProvider} API Key`}
+                  placeholder={`Enter a new ${activeModalProvider} API Key only to replace it`}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                 />

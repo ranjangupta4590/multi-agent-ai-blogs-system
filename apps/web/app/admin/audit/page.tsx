@@ -16,7 +16,7 @@ export default function AdminAuditLogsPage() {
   }, []);
 
   return (
-    <div>
+    <div className="admin-page admin-detail-page">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
         <div>
           <div style={{ fontSize: "0.8rem", color: "var(--brand-primary)", fontWeight: 700 }}>

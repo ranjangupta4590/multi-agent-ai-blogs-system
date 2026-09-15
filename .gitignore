@@ -9,7 +9,7 @@ env/
 venv/
 *.db
 *.sqlite3
-
+blogs_platform.db
 # Node / Next.js
 node_modules/
 .next/

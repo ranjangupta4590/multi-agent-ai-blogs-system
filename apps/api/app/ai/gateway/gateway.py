@@ -1,4 +1,5 @@
 """Centralized LLMGateway orchestrating multi-provider compatibility and single-provider operations."""
+import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 from app.ai.gateway.budget import enforce_article_budget
 from app.ai.gateway.interface import (
@@ -26,6 +27,7 @@ class LLMGateway:
 
     def __init__(self):
         self._providers: Dict[str, LLMProvider] = {}
+        self._provider_models: Dict[str, str] = {}
         self._active_provider_name: Optional[str] = None
         self._active_model_name: Optional[str] = None
         self._fallback_enabled: bool = settings.FALLBACK_ENABLED
@@ -57,6 +59,17 @@ class LLMGateway:
         self._providers[provider.provider_name] = provider
         if make_active or not self._active_provider_name:
             self._active_provider_name = provider.provider_name
+    def set_provider_model(self, provider_name: str, model_name: str) -> None:
+        """Store the exact model selected by the user for this provider."""
+        if provider_name not in self._providers:
+            raise ProviderUnavailableError(provider_name, "Provider is not configured on this server.")
+        model_name = model_name.strip()
+        if not model_name:
+            raise ProviderUnavailableError(provider_name, "A model name is required.")
+        self._provider_models[provider_name] = model_name
+        if self._active_provider_name == provider_name:
+            self._active_model_name = model_name
+
 
     def unregister_provider(self, provider_name: str) -> None:
         """Remove a provider registration."""
@@ -65,12 +78,16 @@ class LLMGateway:
             self._active_provider_name = next(iter(self._providers.keys())) if self._providers else None
 
     def set_active_provider(self, provider_name: str, model_name: Optional[str] = None) -> None:
-        """Set the active provider and optional model."""
+        """Activate a provider using its explicitly configured model."""
         if provider_name not in self._providers:
-            raise ProviderUnavailableError(provider_name, f"Provider '{provider_name}' is not configured on this server.")
+            raise ProviderUnavailableError(provider_name, f"Provider {provider_name} is not configured on this server.")
+        selected_model = (model_name or self._provider_models.get(provider_name, "")).strip()
+        if not selected_model:
+            raise ProviderUnavailableError(provider_name, "Configure a model before activating this provider.")
+        self._provider_models[provider_name] = selected_model
         self._active_provider_name = provider_name
-        self._active_model_name = model_name
-        logger.info(f"Active AI provider switched to: {provider_name} (Model: {model_name})")
+        self._active_model_name = selected_model
+        logger.info(f"Active AI provider switched to: {provider_name} (user model selected)")
 
     @property
     def active_provider_name(self) -> Optional[str]:
@@ -97,8 +114,8 @@ class LLMGateway:
         for name in all_known:
             is_configured = name in self._providers
             is_active = (name == self._active_provider_name)
-            models = self._providers[name].get_models() if is_configured else []
-            default_m = getattr(settings, f"DEFAULT_{name.upper()}_MODEL", "standard")
+            models = []
+            default_m = self._provider_models.get(name, "")
             
             result.append({
                 "name": name,
@@ -133,6 +150,8 @@ class LLMGateway:
         opts = options or LLMOptions()
         if self._active_model_name and not opts.model:
             opts.model = self._active_model_name
+        if not opts.model:
+            raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
 
         provider = self._resolve_active_provider()
         try:
@@ -169,6 +188,8 @@ class LLMGateway:
         opts = options or LLMOptions()
         if self._active_model_name and not opts.model:
             opts.model = self._active_model_name
+        if not opts.model:
+            raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
 
         provider = self._resolve_active_provider()
         try:
@@ -195,11 +216,20 @@ class LLMGateway:
             yield chunk
 
     async def check_provider_health(self, provider_name: str) -> HealthStatus:
-        """Run health check against specific provider."""
+        """Validate the active, user-selected model with a minimal live request."""
         if provider_name not in self._providers:
             return HealthStatus(is_healthy=False, latency_ms=0, message="Provider not configured")
-        return await self._providers[provider_name].health_check()
+        model_name = self._provider_models.get(provider_name)
+        if not model_name:
+            return HealthStatus(is_healthy=False, latency_ms=0, message="Set a model for this provider before running its health check")
+        started_at = time.time()
+        try:
+            await self._providers[provider_name].generate(
+                [LLMMessage(role="user", content="Reply with OK.")],
+                LLMOptions(model=model_name, temperature=0, max_tokens=1, timeout=15.0),
+            )
+            return HealthStatus(is_healthy=True, latency_ms=int((time.time() - started_at) * 1000), message=f"Key and model {model_name} are valid")
+        except Exception as exc:
+            return HealthStatus(is_healthy=False, latency_ms=0, message=f"Model {model_name} failed: {exc}")
 
-
-# Global singleton instance of the LLM Gateway
 llm_gateway = LLMGateway()

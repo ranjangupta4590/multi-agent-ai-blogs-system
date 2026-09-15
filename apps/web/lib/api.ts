@@ -66,10 +66,10 @@ export const api = {
   getProviders: () => request<any[]>("/providers/"),
   setActiveProvider: (provider_name: string, model_name?: string) =>
     request<any>("/providers/active", { method: "POST", body: JSON.stringify({ provider_name, model_name }) }),
-  configureProvider: (provider_name: string, api_key: string, default_model?: string) =>
+  configureProvider: (provider_name: string, api_key?: string, default_model?: string) =>
     request<any>("/providers/configure", {
       method: "POST",
-      body: JSON.stringify({ provider_name, api_key, default_model }),
+      body: JSON.stringify({ provider_name, ...(api_key ? { api_key } : {}), default_model }),
     }),
   checkProviderHealth: (provider_name: string) => request<any>(`/providers/${provider_name}/health`),
 
@@ -84,6 +84,8 @@ export const api = {
   getArticle: (id: string) => request<any>(`/articles/${id}`),
   updateArticle: (id: string, body: any) => request<any>(`/articles/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   generateArticle: (id: string) => request<any>(`/articles/${id}/generate`, { method: "POST" }),
+  cancelArticleGeneration: (id: string) => request<any>(`/articles/${id}/cancel`, { method: "POST" }),
+  deleteArticle: (id: string) => request<any>(`/articles/${id}`, { method: "DELETE" }),
   getArticleVersions: (id: string) => request<any[]>(`/articles/${id}/versions`),
   restoreVersion: (id: string, versionNumber: number) =>
     request<any>(`/articles/${id}/versions/${versionNumber}/restore`, { method: "POST" }),
@@ -93,8 +95,6 @@ export const api = {
   getClaims: (id: string) => request<any[]>(`/articles/${id}/claims`),
   getSEO: (id: string) => request<any>(`/articles/${id}/seo`),
 
-  // Publishing
-  publishWordPress: (body: any) => request<any>("/publishing/wordpress", { method: "POST", body: JSON.stringify(body) }),
 
   // Admin
   getUsers: () => request<any[]>("/admin/users"),

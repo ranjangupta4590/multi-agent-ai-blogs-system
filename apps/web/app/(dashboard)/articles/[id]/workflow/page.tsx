@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -26,7 +26,7 @@ const INITIAL_STEPS: AgentStepState[] = [
   { id: "8", name: "SEO Agent", role: "Keyword coverage, meta tags, schema & readability", status: "pending" },
   { id: "9", name: "Critic Agent", role: "Demanding quality rubric evaluation (0.0 to 10.0)", status: "pending" },
   { id: "10", name: "Revision Editor", role: "Conditional polishing to resolve critic feedback", status: "pending" },
-  { id: "11", name: "Publisher & Review", role: "Enforces human review gate before CMS syndication", status: "pending" },
+  { id: "11", name: "Publisher & Review", role: "Enforces human review before public BlogPilot publishing", status: "pending" },
 ];
 
 export default function ArticleWorkflowProgressPage() {
@@ -39,9 +39,11 @@ export default function ArticleWorkflowProgressPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const executionStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!articleId) return;
+    if (!articleId || executionStartedRef.current) return;
+    executionStartedRef.current = true;
 
     let isMounted = true;
 
@@ -50,40 +52,21 @@ export default function ArticleWorkflowProgressPage() {
         setLogs((prev) => [...prev, `[System] Fetching initial draft metadata for ID: ${articleId}`]);
         const art = await api.getArticle(articleId);
         if (isMounted) setArticle(art);
+        if (art.status !== "DRAFT") {
+          if (isMounted) {
+            const completed = ["IN_REVIEW", "APPROVED", "PUBLISHED"].includes(art.status);
+            setIsFinished(completed);
+            setSteps((prev) => prev.map((step, index) => completed ? { ...step, status: "completed" } : index === 0 ? { ...step, status: "running" } : step));
+            setLogs((prev) => [...prev, completed
+              ? `[System] This article was already generated (${art.word_count} words). Ready for review.`
+              : `[System] A generation is already in progress. This page will not start a duplicate run.`]);
+            if (!completed) setError("Generation is already in progress. Refresh later to see the completed article.");
+          }
+          return;
+        }
 
         setLogs((prev) => [...prev, `[System] Triggering 11-agent pipeline via active model gateway...`]);
-
-        // Connect to SSE stream for visual telemetry
-        const eventSource = new EventSource(`http://localhost:8000/api/v1/articles/${articleId}/events`);
-
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            const stepNum = data.step_number;
-            setSteps((prev) =>
-              prev.map((s, idx) => {
-                if (idx + 1 === stepNum) {
-                  return { ...s, status: "completed", summary: data.message };
-                } else if (idx + 1 === stepNum + 1) {
-                  return { ...s, status: "running" };
-                }
-                return s;
-              })
-            );
-            setLogs((prev) => [...prev, `[${data.agent_name}] ${data.message}`]);
-
-            if (stepNum >= 11) {
-              eventSource.close();
-              setIsFinished(true);
-            }
-          } catch (e) {
-            // Ignore parse hiccups
-          }
-        };
-
-        eventSource.onerror = () => {
-          eventSource.close();
-        };
+        setSteps((prev) => prev.map((step, index) => index === 0 ? { ...step, status: "running" } : step));
 
         // Trigger the actual backend generation workflow
         const updatedArticle = await api.generateArticle(articleId);
@@ -99,6 +82,7 @@ export default function ArticleWorkflowProgressPage() {
       } catch (err: any) {
         if (isMounted) {
           setError(err.message || "Failed during agent execution.");
+          setSteps((prev) => prev.map((step, index) => index === 0 ? { ...step, status: "error", summary: "Generation failed before the workflow completed." } : step));
           setLogs((prev) => [...prev, `[ERROR] ${err.message}`]);
         }
       }

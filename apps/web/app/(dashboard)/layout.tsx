@@ -1,6 +1,6 @@
 import React from "react";
-import Sidebar from "@/components/layout/Sidebar";
-import Header from "@/components/layout/Header";
+import RequireAuth from "@/components/auth/RequireAuth";
+import DashboardShell from "@/components/layout/DashboardShell";
 
 export default function DashboardLayout({
   children,
@@ -8,12 +8,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-container">
-      <Sidebar />
-      <div className="app-main">
-        <Header />
-        <main className="page-content">{children}</main>
-      </div>
-    </div>
+    <RequireAuth>
+      <DashboardShell>{children}</DashboardShell>
+    </RequireAuth>
   );
 }

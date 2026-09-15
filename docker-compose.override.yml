@@ -1,0 +1,19 @@
+# Local development overrides. Docker Compose loads this file automatically
+# alongside docker-compose.yml when using `docker compose up`.
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      ENVIRONMENT: development
+    volumes:
+      - ./apps/api:/app
+
+  web:
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next

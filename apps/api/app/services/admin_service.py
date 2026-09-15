@@ -150,40 +150,35 @@ class AdminService:
         await self.db.commit()
 
     async def configure_provider_key(
-        self, provider_name: str, api_key: str, default_model: Optional[str], admin_user: User
+        self, provider_name: str, api_key: Optional[str], default_model: str, admin_user: User
     ) -> None:
-        """Securely configure an API key on the backend (never stored in plaintext in client)."""
+        """Configure a provider without ever returning its stored credential."""
         adapter = None
-        if provider_name == "OpenAI":
-            adapter = OpenAIProvider(api_key=api_key)
-        elif provider_name == "Gemini":
-            adapter = GeminiProvider(api_key=api_key)
-        elif provider_name == "Claude":
-            adapter = ClaudeProvider(api_key=api_key)
-        elif provider_name == "Grok":
-            adapter = GrokProvider(api_key=api_key)
-
+        if api_key:
+            if provider_name == "OpenAI":
+                adapter = OpenAIProvider(api_key=api_key)
+            elif provider_name == "Gemini":
+                adapter = GeminiProvider(api_key=api_key)
+            elif provider_name == "Claude":
+                adapter = ClaudeProvider(api_key=api_key)
+            elif provider_name == "Grok":
+                adapter = GrokProvider(api_key=api_key)
+        if not adapter and provider_name not in llm_gateway.get_configured_providers():
+            raise NotFoundError("Configured provider", provider_name)
+        was_active = llm_gateway.active_provider_name == provider_name
+        was_unconfigured = not llm_gateway.is_operational()
         if adapter:
-            llm_gateway.register_provider(adapter, make_active=not llm_gateway.is_operational())
-
-            # Update in DB
-            res = await self.db.execute(
-                select(LLMProviderModel).where(LLMProviderModel.name == provider_name)
-            )
-            p_obj = res.scalar_one_or_none()
-            if p_obj:
-                p_obj.connection_status = "CONNECTED"
-                if default_model:
-                    p_obj.default_model = default_model
-
-            audit = AuditLog(
-                user_id=admin_user.id,
-                action="PROVIDER_CONFIGURED",
-                resource_type="PROVIDER",
-                details={"provider": provider_name},  # Notice: API key is strictly NOT in details!
-            )
-            self.db.add(audit)
-            await self.db.commit()
+            llm_gateway.register_provider(adapter, make_active=was_unconfigured)
+        llm_gateway.set_provider_model(provider_name, default_model)
+        if was_active or was_unconfigured:
+            llm_gateway.set_active_provider(provider_name, default_model)
+        res = await self.db.execute(select(LLMProviderModel).where(LLMProviderModel.name == provider_name))
+        p_obj = res.scalar_one_or_none()
+        if p_obj:
+            p_obj.connection_status = "CONNECTED"
+            p_obj.default_model = default_model
+        self.db.add(AuditLog(user_id=admin_user.id, action="PROVIDER_CONFIGURED", resource_type="PROVIDER", details={"provider": provider_name}))
+        await self.db.commit()
 
     async def list_audit_logs(self, limit: int = 100) -> List[AuditLog]:
         res = await self.db.execute(

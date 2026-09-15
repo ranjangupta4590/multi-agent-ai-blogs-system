@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from "react";
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const saved = localStorage.getItem("app_theme") as "light" | "dark" | null;
-    const initial = saved || "dark";
+    const initial = saved || "light";
     setTheme(initial);
     document.documentElement.setAttribute("data-theme", initial);
   }, []);
@@ -22,11 +22,11 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="btn btn-secondary"
-      style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+      className="theme-toggle"
+      aria-label={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
       title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
     >
-      {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+      <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span><span className="theme-toggle-label">{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }

@@ -43,6 +43,7 @@ class User(Base):
     # Relationships
     memberships = relationship("OrganizationMember", back_populates="user", cascade="all, delete-orphan")
     articles = relationship("Article", back_populates="author")
+    comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
     sessions = relationship("SessionModel", back_populates="user", cascade="all, delete-orphan")
 
@@ -160,9 +161,24 @@ class Article(Base):
     versions = relationship("ArticleVersion", back_populates="article", cascade="all, delete-orphan", order_by="ArticleVersion.version_number")
     sources = relationship("Source", back_populates="article", cascade="all, delete-orphan")
     claims = relationship("Claim", back_populates="article", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="article", cascade="all, delete-orphan")
     agent_runs = relationship("AgentRun", back_populates="article", cascade="all, delete-orphan")
     seo_analysis = relationship("SEOAnalysis", back_populates="article", uselist=False, cascade="all, delete-orphan")
     publishing_jobs = relationship("PublishingJob", back_populates="article", cascade="all, delete-orphan")
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    article_id: Mapped[str] = mapped_column(String(36), ForeignKey("articles.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    article = relationship("Article", back_populates="comments")
+    author = relationship("User", back_populates="comments")
 
 
 class ArticleVersion(Base):

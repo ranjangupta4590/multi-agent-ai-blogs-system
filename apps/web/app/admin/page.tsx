@@ -5,101 +5,33 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { AnalyticsSummary } from "@/lib/types";
 
+const modules = [
+  ["Users", "User & role management", "Assign RBAC roles and control active platform access.", "/admin/users", "◉", "Manage users"],
+  ["Prompts", "Prompt versioning", "Review and publish auditable versions for all agents.", "/admin/prompts", "✦", "Manage prompts"],
+  ["Security", "Security audit logs", "Inspect immutable records of important platform actions.", "/admin/audit", "◇", "View audit trail"],
+  ["AI gateway", "AI gateway config", "Configure the active provider and operational controls.", "/settings/providers", "✺", "Configure engine"],
+];
+
 export default function AdminDashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.getAnalytics()
-      .then(setAnalytics)
-      .catch(() => setAnalytics(null))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { api.getAnalytics().then(setAnalytics).catch(() => setAnalytics(null)); }, []);
 
   return (
-    <div>
-      <div style={{ marginBottom: "28px" }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Admin & Governance Console</h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "4px" }}>
-          Superadmin and platform management: users, RBAC roles, versioned prompts, and immutable security audit logs.
-        </p>
+    <section className="admin-page admin-overview">
+      <header className="admin-page-header">
+        <Link href="/dashboard" className="admin-back-link">← Back to dashboard</Link>
+        <span className="eyebrow">Platform controls</span>
+        <h1>Admin &amp; governance</h1>
+        <p>Manage access, prompt governance, security records, and the secure LLM gateway from one protected console.</p>
+      </header>
+
+      <div className="admin-module-grid">
+        {modules.map(([kicker, title, description, href, icon, action]) => <Link href={href} className="admin-module-card" key={href}><span className="admin-module-icon">{icon}</span><span className="admin-module-kicker">{kicker}</span><h2>{title}</h2><p>{description}</p><strong>{action} <i>→</i></strong></Link>)}
       </div>
 
-      {/* Admin Modules Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "32px" }}>
-        <Link href="/admin/users" className="card" style={{ textDecoration: "none" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>👥</div>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700 }}>User Management</h3>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Assign RBAC roles (Admin, Editor, Author, Viewer) and toggle active status.
-          </p>
-          <div style={{ fontSize: "0.8rem", color: "var(--brand-primary)", fontWeight: 600, marginTop: "16px" }}>
-            Manage Users →
-          </div>
-        </Link>
-
-        <Link href="/admin/prompts" className="card" style={{ textDecoration: "none" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>📜</div>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700 }}>Prompt Versioning</h3>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Audit, edit, and publish versioned system prompts for all 11 autonomous agents.
-          </p>
-          <div style={{ fontSize: "0.8rem", color: "var(--brand-primary)", fontWeight: 600, marginTop: "16px" }}>
-            Manage Prompts →
-          </div>
-        </Link>
-
-        <Link href="/admin/audit" className="card" style={{ textDecoration: "none" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>🛡️</div>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700 }}>Security Audit Logs</h3>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Immutable records of logins, publishing, provider reconfiguration, and security events.
-          </p>
-          <div style={{ fontSize: "0.8rem", color: "var(--brand-primary)", fontWeight: 600, marginTop: "16px" }}>
-            View Audit Trail →
-          </div>
-        </Link>
-
-        <Link href="/settings/providers" className="card" style={{ textDecoration: "none" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⚡</div>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700 }}>AI Gateway Config</h3>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Switch active provider, inspect server connection states, and enforce budget ceilings.
-          </p>
-          <div style={{ fontSize: "0.8rem", color: "var(--brand-primary)", fontWeight: 600, marginTop: "16px" }}>
-            Configure Engine →
-          </div>
-        </Link>
-      </div>
-
-      {/* Analytics Summary */}
-      {analytics && (
-        <div className="card">
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "16px" }}>Platform Operations Summary</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>TOTAL REGISTERED USERS</div>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700, marginTop: "4px" }}>{analytics.total_users}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ACTIVE USERS</div>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700, marginTop: "4px", color: "var(--accent-success)" }}>
-                {analytics.active_users}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>TOTAL ARTICLES</div>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700, marginTop: "4px" }}>{analytics.total_articles}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>TOTAL ACCUMULATED COST</div>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700, marginTop: "4px", color: "var(--brand-primary)" }}>
-                ${analytics.total_cost_usd.toFixed(4)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      {analytics && <section className="admin-summary card"><header><div><span className="eyebrow">Live platform signals</span><h2>Operations summary</h2></div><span className="admin-summary-status"><i /> Monitoring active</span></header><div className="admin-stat-grid">
+        <div><span>Total registered users</span><strong>{analytics.total_users}</strong></div><div><span>Active users</span><strong className="success-number">{analytics.active_users}</strong></div><div><span>Total articles</span><strong>{analytics.total_articles}</strong></div><div><span>Total tracked cost</span><strong className="cost-number">${analytics.total_cost_usd.toFixed(4)}</strong></div>
+      </div></section>}
+    </section>
   );
 }

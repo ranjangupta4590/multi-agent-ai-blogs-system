@@ -2,11 +2,11 @@
 from datetime import datetime, timezone
 import re
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.gateway.gateway import llm_gateway
 from app.ai.workflows.workflow_engine import BlogGenerationWorkflow
-from app.core.errors import ForbiddenError, NotFoundError, NoProviderConfiguredError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, NoProviderConfiguredError
 from app.models.entities import (
     Article,
     ArticleVersion,
@@ -120,6 +120,19 @@ class ArticleService:
     ) -> Article:
         """Run the 11-agent workflow and update the article."""
         article = await self.get_article(article_id, user, org_id)
+        # Atomically claim a Draft before any provider work. This prevents duplicate
+        # browser requests from running and overwriting the same article concurrently.
+        claimed = await self.db.execute(
+            update(Article)
+            .where(and_(Article.id == article.id, Article.status == "DRAFT"))
+            .values(status="GENERATING")
+            .returning(Article.id)
+        )
+        if claimed.scalar_one_or_none() is None:
+            await self.db.rollback()
+            raise ConflictError("This article is already generating or has already been generated. Refresh it before starting another run.")
+        await self.db.commit()
+        await self.db.refresh(article)
         
         # Check that an AI provider is configured
         if not llm_gateway.is_operational():
@@ -131,8 +144,6 @@ class ArticleService:
         proj_res = await self.db.execute(select(Project).where(Project.id == article.project_id))
         project = proj_res.scalar_one()
 
-        article.status = "GENERATING"
-        await self.db.commit()
 
         initial_state = {
             "topic": article.topic,
@@ -145,7 +156,12 @@ class ArticleService:
         }
 
         workflow = BlogGenerationWorkflow()
-        final_state = await workflow.run(initial_state)
+        try:
+            final_state = await workflow.run(initial_state)
+        except Exception:
+            article.status = "DRAFT"
+            await self.db.commit()
+            raise
 
         # Update article fields
         article.title = final_state.get("title", article.title)
