@@ -43,7 +43,7 @@ class UserOut(SchemaBase):
 
 
 class UserRoleUpdate(BaseModel):
-    role: str = Field(..., description="SUPER_ADMIN, ADMIN, EDITOR, AUTHOR, VIEWER")
+    role: str = Field(..., description="ADMIN, PORTAL_USER, or PUBLIC_USER")
 
 
 class PasswordResetRequest(BaseModel):
@@ -319,3 +319,10 @@ class AnalyticsSummaryOut(BaseModel):
     total_cost_usd: float
     provider_usage: Dict[str, int]
     agent_success_rate: float
+
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(..., min_length=2, max_length=255)
+    role: str = Field(..., description="ADMIN or PORTAL_USER")
+

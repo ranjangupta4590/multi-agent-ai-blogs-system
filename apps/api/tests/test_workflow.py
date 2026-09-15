@@ -12,6 +12,7 @@ async def test_full_11_agent_workflow_execution():
     gateway._providers.clear()
     mock_provider = MockProvider("Claude")
     gateway.register_provider(mock_provider, make_active=True)
+    gateway.set_provider_model("Claude", "claude-test")
 
     workflow = BlogGenerationWorkflow(gateway=gateway)
     events = []
@@ -77,6 +78,7 @@ async def test_conditional_revision_loop_termination():
             return await super().generate_structured(messages, schema, options)
 
     gateway.register_provider(LowScoreMock("Gemini"), make_active=True)
+    gateway.set_provider_model("Gemini", "gemini-test")
     workflow = BlogGenerationWorkflow(gateway=gateway)
 
     initial_state = {

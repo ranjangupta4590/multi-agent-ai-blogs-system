@@ -7,8 +7,8 @@ import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("AdminPass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +21,7 @@ export default function LoginPage() {
       if (res.access_token) {
         localStorage.setItem("token", res.access_token);
       }
-      router.push("/dashboard");
+      router.push(res.role === "PUBLIC_USER" ? "/" : "/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to sign in.");
     } finally {

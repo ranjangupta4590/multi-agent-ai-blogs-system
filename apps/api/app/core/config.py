@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_PASSWORD: Optional[str] = Field(default=None, min_length=12)
     RESET_INITIAL_ADMIN_PASSWORD: bool = False
 
+    # Invitation email (server-side only; no SMTP setting is exposed to the UI).
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    SMTP_TIMEOUT_SECONDS: int = 15
+    APP_PUBLIC_URL: str = "http://localhost:3000"
+
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

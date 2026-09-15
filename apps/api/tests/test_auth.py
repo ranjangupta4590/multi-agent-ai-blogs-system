@@ -19,7 +19,7 @@ async def test_user_registration_and_argon2_hashing(test_db_session):
     resp = await service.register(reg_req)
     assert resp.email == "author1@example.com"
     assert resp.full_name == "Alice Author"
-    assert resp.role == "AUTHOR"
+    assert resp.role == "PUBLIC_USER"
     assert resp.access_token is not None
 
     # Verify duplicate registration is rejected

@@ -36,7 +36,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    role: Mapped[str] = mapped_column(String(50), default="AUTHOR", nullable=False)  # SUPER_ADMIN, ADMIN, EDITOR, AUTHOR, VIEWER
+    role: Mapped[str] = mapped_column(String(50), default="PUBLIC_USER", nullable=False)  # ADMIN, PORTAL_USER, PUBLIC_USER
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
@@ -68,7 +68,7 @@ class OrganizationMember(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    role: Mapped[str] = mapped_column(String(50), default="AUTHOR", nullable=False)
+    role: Mapped[str] = mapped_column(String(50), default="PUBLIC_USER", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     __table_args__ = (UniqueConstraint("organization_id", "user_id", name="uq_org_user"),)

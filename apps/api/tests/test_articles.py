@@ -11,6 +11,7 @@ from app.services.article_service import ArticleService
 async def test_article_versioning_and_restore(test_db_session):
     # Register mock provider
     llm_gateway.register_provider(MockProvider("OpenAI"), make_active=True)
+    llm_gateway.set_provider_model("OpenAI", "openai-test")
 
     # Setup test org, user, and project
     org = Organization(name="Test Org", slug="test-org")
@@ -21,12 +22,12 @@ async def test_article_versioning_and_restore(test_db_session):
         email="writer@example.com",
         hashed_password="hash",
         full_name="Writer Person",
-        role="AUTHOR",
+        role="PORTAL_USER",
     )
     test_db_session.add(user)
     await test_db_session.flush()
 
-    member = OrganizationMember(organization_id=org.id, user_id=user.id, role="AUTHOR")
+    member = OrganizationMember(organization_id=org.id, user_id=user.id, role="PORTAL_USER")
     test_db_session.add(member)
 
     project = Project(

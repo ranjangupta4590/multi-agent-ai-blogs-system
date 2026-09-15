@@ -28,7 +28,7 @@ export default function RegisterPage() {
       if (res.access_token) {
         localStorage.setItem("token", res.access_token);
       }
-      router.push("/dashboard");
+      router.push("/");
     } catch (err: any) {
       setError(err.message || "Registration failed.");
     } finally {
@@ -57,9 +57,9 @@ export default function RegisterPage() {
           >
             A
           </div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Create Your Account</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Create Public Account</h1>
           <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginTop: "4px" }}>
-            Start generating high-ranking, fact-grounded content
+            Create a public reader account to follow and discuss BlogPilot stories
           </p>
         </div>
 

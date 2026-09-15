@@ -13,7 +13,7 @@ class ProjectService:
 
     async def _verify_org_membership(self, user: User, org_id: str) -> None:
         """Enforce multi-tenant access boundary."""
-        if user.role == "SUPER_ADMIN":
+        if user.role == "ADMIN":
             return
         res = await self.db.execute(
             select(OrganizationMember).where(

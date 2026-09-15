@@ -1,6 +1,6 @@
 """Database initialization and seeding of roles, superadmin, and default prompts."""
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.logging import logger
@@ -82,6 +82,16 @@ DEFAULT_PROMPTS = {
 
 async def init_db(session: AsyncSession) -> None:
     """Initialize database tables and seed baseline records."""
+    legacy_roles = {
+        "SUPER_ADMIN": RoleEnum.ADMIN.value,
+        "EDITOR": RoleEnum.PORTAL_USER.value,
+        "AUTHOR": RoleEnum.PORTAL_USER.value,
+        "VIEWER": RoleEnum.PUBLIC_USER.value,
+    }
+    for legacy, replacement in legacy_roles.items():
+        await session.execute(update(User).where(User.role == legacy).values(role=replacement))
+        await session.execute(update(OrganizationMember).where(OrganizationMember.role == legacy).values(role=replacement))
+
     # 1. Create permissions and roles
     permissions_map = {}
     for perm in Permission:
@@ -98,7 +108,6 @@ async def init_db(session: AsyncSession) -> None:
         role_obj = res.scalar_one_or_none()
         if not role_obj:
             role_obj = Role(name=role_enum.value, description=f"{role_enum.value} role", is_system=True)
-            # Add mapped permissions
             assigned_perms = ROLE_PERMISSIONS.get(role_enum, set())
             role_obj.permissions = [permissions_map[p] for p in assigned_perms if p in permissions_map]
             session.add(role_obj)
@@ -125,11 +134,11 @@ async def init_db(session: AsyncSession) -> None:
                 full_name="Platform Administrator",
                 is_active=True,
                 is_verified=True,
-                role=RoleEnum.SUPER_ADMIN.value,
+                role=RoleEnum.ADMIN.value,
             )
             session.add(admin)
             await session.flush()
-            session.add(OrganizationMember(organization_id=org.id, user_id=admin.id, role=RoleEnum.SUPER_ADMIN.value))
+            session.add(OrganizationMember(organization_id=org.id, user_id=admin.id, role=RoleEnum.ADMIN.value))
         elif settings.RESET_INITIAL_ADMIN_PASSWORD:
             admin.hashed_password = hash_password(settings.INITIAL_ADMIN_PASSWORD)
             admin.is_active = True

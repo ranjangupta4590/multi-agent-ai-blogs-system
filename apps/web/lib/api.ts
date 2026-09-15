@@ -59,6 +59,7 @@ export const api = {
   // Auth
   register: (body: any) => request<any>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   login: (body: any) => request<any>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
+  adminSignup: (body: any) => request<any>("/auth/admin-signup", { method: "POST", body: JSON.stringify(body) }),
   logout: () => request<any>("/auth/logout", { method: "POST" }),
   getMe: () => request<any>("/auth/me"),
 
@@ -97,6 +98,7 @@ export const api = {
 
 
   // Admin
+  createUser: (body: any) => request<any>("/admin/users", { method: "POST", body: JSON.stringify(body) }),
   getUsers: () => request<any[]>("/admin/users"),
   updateUserRole: (userId: string, role: string) =>
     request<any>(`/admin/users/${userId}/role`, { method: "PUT", body: JSON.stringify({ role }) }),

@@ -148,12 +148,12 @@ class LLMGateway:
         """Generate response via active provider with retry and budget enforcement."""
         enforce_article_budget(accumulated_article_cost)
         opts = options or LLMOptions()
+        provider = self._resolve_active_provider()
         if self._active_model_name and not opts.model:
             opts.model = self._active_model_name
         if not opts.model:
             raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
 
-        provider = self._resolve_active_provider()
         try:
             response = await provider.generate(messages, opts)
             enforce_article_budget(accumulated_article_cost, response.estimated_cost_usd)
@@ -186,12 +186,12 @@ class LLMGateway:
         """Generate structured JSON payload via active provider."""
         enforce_article_budget(accumulated_article_cost)
         opts = options or LLMOptions()
+        provider = self._resolve_active_provider()
         if self._active_model_name and not opts.model:
             opts.model = self._active_model_name
         if not opts.model:
             raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
 
-        provider = self._resolve_active_provider()
         try:
             return await provider.generate_structured(messages, schema, opts)
         except Exception as e:

@@ -21,7 +21,7 @@ class PublishingService:
             raise NotFoundError("Article", req.article_id)
 
         # Human Review Safeguard: Check that user has authority to publish
-        if user.role not in ("SUPER_ADMIN", "ADMIN", "EDITOR"):
+        if user.role not in ("ADMIN",):
             raise ForbiddenError("You must be an Editor or Admin to publish articles.")
 
         # Create job entry

@@ -83,7 +83,7 @@ export default function PublicArticlePage() {
     }
   }, [articleId]);
 
-  const canModerate = (comment: PublicComment) => Boolean(currentUser && (currentUser.id === comment.author_id || ["SUPER_ADMIN", "ADMIN"].includes(currentUser.role)));
+  const canModerate = (comment: PublicComment) => Boolean(currentUser && (currentUser.id === comment.author_id || ["ADMIN"].includes(currentUser.role)));
 
   const submitComment = async (event: React.FormEvent) => {
     event.preventDefault();

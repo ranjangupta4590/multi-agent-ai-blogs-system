@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { api } from "@/lib/api";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: "▦", group: "Content studio" },
@@ -12,7 +13,7 @@ const navItems = [
   { label: "SEO Intelligence", href: "/seo", icon: "↗" },
   { label: "Public Publishing", href: "/publishing", icon: "◉" },
   { label: "AI Providers", href: "/settings/providers", icon: "✺", group: "System & operations" },
-  { label: "Admin Console", href: "/admin", icon: "◇" },
+  { label: "Admin Console", href: "/admin", icon: "◇", adminOnly: true },
 ];
 
 type SidebarProps = {
@@ -24,6 +25,13 @@ type SidebarProps = {
 
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getMe().then((user) => setRole(user.role)).catch(() => setRole(null));
+  }, []);
+
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || role === "ADMIN");
 
   return (
     <aside className={`app-sidebar ${collapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`} aria-label="Main navigation">
@@ -42,7 +50,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map((item, index) => {
+        {visibleNavItems.map((item, index) => {
           const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
           return (
             <React.Fragment key={item.href}>

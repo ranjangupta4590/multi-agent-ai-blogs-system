@@ -17,6 +17,7 @@ async def test_matrix_test_1_openai_only():
     # Register only OpenAI
     openai_mock = MockProvider("OpenAI")
     gateway.register_provider(openai_mock, make_active=True)
+    gateway.set_provider_model("OpenAI", "openai-test")
 
     assert gateway.is_operational() is True
     assert gateway.active_provider_name == "OpenAI"
@@ -37,6 +38,7 @@ async def test_matrix_test_2_gemini_only():
 
     gemini_mock = MockProvider("Gemini")
     gateway.register_provider(gemini_mock, make_active=True)
+    gateway.set_provider_model("Gemini", "gemini-test")
 
     assert gateway.is_operational() is True
     assert gateway.active_provider_name == "Gemini"
@@ -56,6 +58,7 @@ async def test_matrix_test_3_claude_only():
 
     claude_mock = MockProvider("Claude")
     gateway.register_provider(claude_mock, make_active=True)
+    gateway.set_provider_model("Claude", "claude-test")
 
     assert gateway.is_operational() is True
     assert gateway.active_provider_name == "Claude"
@@ -80,6 +83,9 @@ async def test_matrix_test_4_multiple_providers_active_selection():
     gateway.register_provider(openai_mock)
     gateway.register_provider(gemini_mock)
     gateway.register_provider(claude_mock)
+    gateway.set_provider_model("OpenAI", "openai-test")
+    gateway.set_provider_model("Gemini", "gemini-test")
+    gateway.set_provider_model("Claude", "claude-test")
 
     assert len(gateway.get_configured_providers()) == 3
 
@@ -139,6 +145,7 @@ async def test_fallback_behavior_disabled_by_default():
 
     gateway.register_provider(failing_openai, make_active=True)
     gateway.register_provider(working_gemini)
+    gateway.set_provider_model("OpenAI", "openai-test")
 
     # With fallback disabled, OpenAI failure raises error directly without silently calling Gemini
     with pytest.raises(ProviderUnavailableError):

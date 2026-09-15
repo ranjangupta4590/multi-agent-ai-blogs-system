@@ -138,7 +138,7 @@ async def _get_moderatable_comment(article_id: str, comment_id: str, db: AsyncSe
 
 
 def _can_moderate_comment(comment: Comment, user: User) -> bool:
-    return comment.author_id == user.id or user.role in {"SUPER_ADMIN", "ADMIN"}
+    return comment.author_id == user.id or user.role in {"ADMIN"}
 
 
 @router.put("/articles/{article_id}/comments/{comment_id}")

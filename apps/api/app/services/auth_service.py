@@ -2,11 +2,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import Depends, Header, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
-from app.core.rbac import Permission, user_has_permission
+from app.core.rbac import Permission, RoleEnum, user_has_permission
 from app.core.security import (
     create_access_token,
     decode_access_token,
@@ -44,7 +44,7 @@ class AuthService:
             full_name=req.full_name,
             is_active=True,
             is_verified=True,
-            role="AUTHOR",
+            role=RoleEnum.PUBLIC_USER.value,
         )
         self.db.add(user)
         await self.db.flush()
@@ -53,7 +53,7 @@ class AuthService:
         member = OrganizationMember(
             organization_id=org.id,
             user_id=user.id,
-            role="AUTHOR",
+            role=RoleEnum.PUBLIC_USER.value,
         )
         self.db.add(member)
 
@@ -84,6 +84,29 @@ class AuthService:
             role=user.role,
             organization_id=org.id,
         )
+
+    async def admin_signup(self, req: UserRegister, ip_address: Optional[str] = None) -> TokenResponse:
+        """One-time Admin bootstrap. Once an Admin exists, only Admin invitations can create accounts."""
+        admin_count = (await self.db.execute(select(func.count(User.id)).where(User.role == RoleEnum.ADMIN.value))).scalar() or 0
+        if admin_count:
+            raise ForbiddenError("Admin signup is closed. Ask an existing Admin to create an internal account.")
+        res = await self.db.execute(select(User).where(User.email == req.email.lower()))
+        if res.scalar_one_or_none():
+            raise ConflictError("A user with this email address already exists.")
+        org_res = await self.db.execute(select(Organization).where(Organization.slug == "default-org"))
+        org = org_res.scalar_one_or_none()
+        if not org:
+            org = Organization(name="Primary Organization", slug="default-org")
+            self.db.add(org)
+            await self.db.flush()
+        user = User(email=req.email.lower(), hashed_password=hash_password(req.password), full_name=req.full_name, is_active=True, is_verified=True, role=RoleEnum.ADMIN.value)
+        self.db.add(user)
+        await self.db.flush()
+        self.db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role=RoleEnum.ADMIN.value))
+        self.db.add(AuditLog(user_id=user.id, organization_id=org.id, action="ADMIN_BOOTSTRAP", resource_type="USER", resource_id=user.id, details={"role": user.role}, ip_address=ip_address))
+        await self.db.commit()
+        token = create_access_token(subject=user.id, claims={"email": user.email, "role": user.role, "org_id": org.id})
+        return TokenResponse(access_token=token, user_id=user.id, email=user.email, full_name=user.full_name, role=user.role, organization_id=org.id)
 
     async def login(self, req: UserLogin, ip_address: Optional[str] = None) -> TokenResponse:
         res = await self.db.execute(select(User).where(User.email == req.email.lower()))

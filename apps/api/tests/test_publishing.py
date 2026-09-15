@@ -18,7 +18,7 @@ async def test_publishing_safeguard_requires_editor_or_admin(test_db_session):
         email="author@example.com",
         hashed_password="hash",
         full_name="Junior Author",
-        role="AUTHOR",  # Does not have publish permissions
+        role="PORTAL_USER",  # Does not have publish permissions
     )
     test_db_session.add(author_user)
     await test_db_session.flush()

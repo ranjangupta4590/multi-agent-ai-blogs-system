@@ -1,4 +1,5 @@
 """Admin service providing management of users, prompts, providers, audit logs, and metrics."""
+import secrets
 from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +8,9 @@ from app.ai.providers.anthropic_provider import ClaudeProvider
 from app.ai.providers.gemini_provider import GeminiProvider
 from app.ai.providers.grok_provider import GrokProvider
 from app.ai.providers.openai_provider import OpenAIProvider
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.core.rbac import RoleEnum
+from app.core.security import hash_password
 from app.models.entities import (
     Article,
     AuditLog,
@@ -18,8 +21,11 @@ from app.models.entities import (
     PromptModel,
     PromptVersionModel,
     User,
+    Organization,
+    OrganizationMember,
 )
-from app.schemas.schemas import AnalyticsSummaryOut, UserOut
+from app.schemas.schemas import AdminUserCreate, AnalyticsSummaryOut, UserOut
+from app.services.email_service import EmailService
 
 
 class AdminService:
@@ -30,14 +36,55 @@ class AdminService:
         res = await self.db.execute(select(User).order_by(User.created_at.desc()))
         return list(res.scalars().all())
 
+    async def create_user_invitation(self, req: AdminUserCreate, admin_user: User) -> User:
+        if req.role not in {RoleEnum.ADMIN.value, RoleEnum.PORTAL_USER.value}:
+            raise ValidationError("Admin-created accounts must be ADMIN or PORTAL_USER. Public users register themselves.")
+        existing = await self.db.execute(select(User).where(User.email == req.email.lower()))
+        if existing.scalar_one_or_none():
+            raise ConflictError("A user with this email address already exists.")
+        org_id = (await self.db.execute(select(OrganizationMember.organization_id).where(OrganizationMember.user_id == admin_user.id))).scalar_one_or_none()
+        if not org_id:
+            org = (await self.db.execute(select(Organization).where(Organization.slug == "default-org"))).scalar_one_or_none()
+            if not org:
+                raise ValidationError("No workspace is available for this invitation.")
+            org_id = org.id
+        temporary_password = secrets.token_urlsafe(18)
+        user = User(email=req.email.lower(), hashed_password=hash_password(temporary_password), full_name=req.full_name, is_active=True, is_verified=True, role=req.role)
+        self.db.add(user)
+        await self.db.flush()
+        self.db.add(OrganizationMember(organization_id=org_id, user_id=user.id, role=req.role))
+        await EmailService().send_user_invitation(recipient=user.email, full_name=user.full_name, role=user.role, temporary_password=temporary_password)
+        self.db.add(AuditLog(user_id=admin_user.id, organization_id=org_id, action="USER_INVITED", resource_type="USER", resource_id=user.id, details={"target_user": user.email, "role": user.role}))
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
     async def update_user_role(self, user_id: str, new_role: str, admin_user: User) -> User:
+        if new_role not in {role.value for role in RoleEnum}:
+            raise ValidationError("Role must be ADMIN, PORTAL_USER, or PUBLIC_USER.")
         res = await self.db.execute(select(User).where(User.id == user_id))
         user = res.scalar_one_or_none()
         if not user:
             raise NotFoundError("User", user_id)
 
+        if user.role == RoleEnum.ADMIN.value and new_role != RoleEnum.ADMIN.value:
+            other_active_admins = (
+                await self.db.execute(
+                    select(func.count(User.id)).where(
+                        User.role == RoleEnum.ADMIN.value,
+                        User.is_active == True,
+                        User.id != user.id,
+                    )
+                )
+            ).scalar() or 0
+            if other_active_admins == 0:
+                raise ValidationError("At least one active ADMIN account must remain.")
+
         old_role = user.role
         user.role = new_role
+        memberships = await self.db.execute(select(OrganizationMember).where(OrganizationMember.user_id == user.id))
+        for membership in memberships.scalars().all():
+            membership.role = new_role
 
         audit = AuditLog(
             user_id=admin_user.id,
@@ -56,6 +103,19 @@ class AdminService:
         user = res.scalar_one_or_none()
         if not user:
             raise NotFoundError("User", user_id)
+
+        if user.role == RoleEnum.ADMIN.value and user.is_active and not is_active:
+            other_active_admins = (
+                await self.db.execute(
+                    select(func.count(User.id)).where(
+                        User.role == RoleEnum.ADMIN.value,
+                        User.is_active == True,
+                        User.id != user.id,
+                    )
+                )
+            ).scalar() or 0
+            if other_active_admins == 0:
+                raise ValidationError("At least one active ADMIN account must remain.")
 
         user.is_active = is_active
         audit = AuditLog(

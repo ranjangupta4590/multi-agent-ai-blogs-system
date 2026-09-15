@@ -36,6 +36,28 @@ async def register(
     return token_resp
 
 
+@router.post("/admin-signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def admin_signup(
+    req: UserRegister,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Bootstrap exactly one Admin when no Admin has been provisioned yet."""
+    client_ip = request.client.host if request.client else "unknown"
+    enforce_rate_limit(f"admin_signup_{client_ip}", max_requests=3, window_seconds=3600)
+    token_resp = await AuthService(db).admin_signup(req, ip_address=client_ip)
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=token_resp.access_token,
+        httponly=True,
+        secure=settings.SECURE_COOKIES,
+        samesite=settings.SAME_SITE_POLICY,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    return token_resp
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     req: UserLogin,

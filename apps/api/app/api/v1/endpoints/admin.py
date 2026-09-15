@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rbac import Permission
 from app.db.session import get_db
 from app.models.entities import User
-from app.schemas.schemas import AnalyticsSummaryOut, AuditLogOut, UserOut, UserRoleUpdate
+from app.schemas.schemas import AdminUserCreate, AnalyticsSummaryOut, AuditLogOut, UserOut, UserRoleUpdate
 from app.services.admin_service import AdminService
 from app.services.auth_service import require_permission
 
@@ -20,6 +20,16 @@ class ToggleActiveRequest(BaseModel):
 class CreatePromptVersionRequest(BaseModel):
     system_prompt: str
     user_template: str
+
+
+@router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    req: AdminUserCreate,
+    current_user: User = Depends(require_permission(Permission.USERS_CREATE)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create an internal account and send its temporary password only by email."""
+    return await AdminService(db).create_user_invitation(req, current_user)
 
 
 @router.get("/users", response_model=List[UserOut])
