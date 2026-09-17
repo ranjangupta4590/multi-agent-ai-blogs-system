@@ -26,11 +26,8 @@ pipeline {
             steps {
                 sh '''#!/usr/bin/env bash
                     set -euo pipefail
-                    tracked_secrets="$(git ls-files | grep -E '(^|/)(\.env|\.env\..*|.*\.pem|.*\.p12|.*\.pfx|id_(rsa|ed25519))$' || true)"
-                    tracked_secrets="$(echo "$tracked_secrets" | grep -vF .env.example || true)"
-                    if [ -n "$tracked_secrets" ]; then
-                      echo 'Refusing deployment: a secret-like file is tracked by Git.'
-                      printf '%s\n' "$tracked_secrets"
+                    if git ls-files | grep -E ".env|.pem|.p12|.pfx|.key|id_rsa|id_ed25519" | grep -vF .env.example | grep -q .; then
+                      echo "Refusing deployment: a secret-like file is tracked by Git."
                       exit 1
                     fi
                     test -f docker-compose.prod.yml
