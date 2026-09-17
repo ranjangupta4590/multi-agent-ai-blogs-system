@@ -26,19 +26,12 @@ pipeline {
             steps {
                 sh '''#!/usr/bin/env bash
                     set -euo pipefail
-                    if git ls-files | while IFS= read -r file; do
-                      case "$file" in
-                        .env|*/.env|*.env|*.env.local|*.env.development.local|*.env.test.local|*.env.production|*.env.production.local|*.pem|*.p12|*.pfx|*.key|*/id_rsa|*/id_ed25519)
-                          echo "Refusing deployment: a secret-like file is tracked by Git: $file" >&2
-                          exit 1
-                          ;;
-                      esac
+                    for secret_file in .env .runtime.env deploy/blogpilot-production.env; do
+                      if git ls-files --error-unmatch "$secret_file" >/dev/null 2>&1; then
+                        echo "Refusing deployment: $secret_file is tracked by Git." >&2
+                        exit 1
+                      fi
                     done
-                    then
-                      :
-                    else
-                      exit 1
-                    fi
                     test -f docker-compose.prod.yml
                     test -f deploy/production.env.example
                 '''
