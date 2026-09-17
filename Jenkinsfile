@@ -3,7 +3,6 @@ pipeline {
 
     options {
         disableConcurrentBuilds()
-        disableResume()
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20', daysToKeepStr: '14'))
         skipDefaultCheckout(true)
