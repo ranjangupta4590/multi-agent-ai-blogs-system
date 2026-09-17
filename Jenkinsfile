@@ -55,15 +55,20 @@ pipeline {
         }
     }
 
-        stage('API tests') {
-            steps {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-                    docker build --tag "$API_TEST_IMAGE" apps/api
-                    docker run --rm --network none "$API_TEST_IMAGE" pytest -q
-                '''
-            }
+    stage('API tests') {
+        steps {
+            sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                docker build --tag "$API_TEST_IMAGE" apps/api
+
+                docker run --rm \
+                --network none \
+                -e SECRET_KEY="ci-test-secret-key-123456789" \
+                "$API_TEST_IMAGE" pytest -q
+            '''
         }
+    }
 
         stage('Web type check and build') {
             steps {
