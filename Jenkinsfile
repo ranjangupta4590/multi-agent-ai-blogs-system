@@ -22,21 +22,39 @@ pipeline {
             }
         }
 
-        stage('Verify secret hygiene') {
-            steps {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-                    for secret_file in .env .runtime.env deploy/blogpilot-production.env; do
-                      if git ls-files --error-unmatch "$secret_file" >/dev/null 2>&1; then
-                        echo "Refusing deployment: $secret_file is tracked by Git." >&2
+    stage('Verify secret hygiene') {
+        steps {
+            sh '''#!/usr/bin/env bash
+                set -eu
+
+                echo "=== Checking secret files ==="
+
+                for secret_file in .env .runtime.env deploy/blogpilot-production.env; do
+                    if git ls-files --error-unmatch "$secret_file" >/dev/null 2>&1; then
+                        echo "ERROR: Secret file is tracked by Git: $secret_file"
                         exit 1
-                      fi
-                    done
-                    test -f docker-compose.prod.yml
-                    test -f deploy/production.env.example
-                '''
-            }
+                    fi
+                done
+
+                echo "Secret file check passed."
+
+                echo "=== Checking production files ==="
+
+                if [ ! -f docker-compose.prod.yml ]; then
+                    echo "ERROR: docker-compose.prod.yml not found"
+                    exit 1
+                fi
+
+                if [ ! -f deploy/production.env.example ]; then
+                    echo "ERROR: deploy/production.env.example not found"
+                    exit 1
+                fi
+
+                echo "Production files check passed."
+                echo "=== Secret hygiene check PASSED ==="
+            '''
         }
+    }
 
         stage('API tests') {
             steps {
