@@ -50,11 +50,11 @@ Human Review & CMS Approval
 ## 🛡️ Enterprise Security & Governance
 
 - **Argon2id Password Security**: Modern password hashing with secure salting and memory hardness.
-- **Granular RBAC**: 5 roles (`SUPER_ADMIN`, `ADMIN`, `EDITOR`, `AUTHOR`, `VIEWER`) and fine-grained permissions.
+- **Granular RBAC**: Three explicit roles: `ADMIN` (internal, full access), `PORTAL_USER` (admin-defined limited access), and `PUBLIC_USER` (public reading and interaction only).
 - **Strict Secret Hygiene**: Zero API keys, passwords, or tokens in client bundles, JSON responses, or logs.
 - **SSRF Defense**: Strict egress socket filtering blocking loopback (`127.0.0.1`), RFC 1918 private subnets, and cloud metadata endpoints (`169.254.169.254`).
 - **Prompt Injection Boundaries**: Untrusted web research content is isolated in `<untrusted_external_content>` tags.
-- **Human Review Safeguard**: Default workflow transitions to `IN_REVIEW`. Publishing to live WordPress requires human authorization.
+- **Human Review Safeguard**: Default workflow transitions to `IN_REVIEW`; an authorized administrator must approve before an article becomes public.
 - **Immutable Audit Logging**: Append-only security audit log recording logins, role changes, and syndication jobs.
 - **Budget Control**: Per-article, per-project, and per-user cost ceilings.
 
@@ -102,17 +102,15 @@ The web application will be accessible at: `http://localhost:3000`.
 
 ---
 
-## 🐳 Docker Compose Deployment
+## 🐳 Docker setup
 
-To deploy the entire production stack (FastAPI API, Next.js Web, PostgreSQL with pgvector, and Redis):
+For local hot-reload development, copy `.env.example` to `.env`, fill the required local values, then run:
 
 ```bash
-# Start all services
 docker compose up --build -d
-
-# Check service logs
-docker compose logs -f
 ```
+
+For the secure EC2/Jenkins deployment, use `docker-compose.yml` together with `docker-compose.prod.yml` and a Jenkins **Secret file** credential. See [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md). Database and Redis are internal-only in production; do not publish their ports.
 
 ---
 
@@ -135,10 +133,6 @@ cd apps/api
 
 ---
 
-## 📚 Default Admin Credentials
+## 📚 First administrator
 
-Upon initial database creation, a default superadministrator is seeded:
-
-- **Email**: `admin@example.com`
-- **Password**: `AdminPass123!`
-- **Role**: `SUPER_ADMIN`
+No default account or password is committed. Create the initial internal administrator through the protected `/admin-signup` route when no administrator exists, or supply `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` only through the server-side production secret file.

@@ -1,0 +1,16 @@
+# Production-only overlay. Use together with docker-compose.yml, never with the dev override.
+services:
+  api:
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECURE_COOKIES: "true"
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  postgres: {}
+  redis: {}

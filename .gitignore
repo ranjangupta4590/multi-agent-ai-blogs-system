@@ -27,6 +27,14 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.runtime.env
+deploy/*.env
+!deploy/*.env.example
+deploy/secrets/
+*.pem
+*.key
+*.p12
+*.pfx
 
 # IDE
 .idea/

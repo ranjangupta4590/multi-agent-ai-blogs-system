@@ -1,0 +1,13 @@
+# Append this application site to /etc/caddy/Caddyfile on EC2.
+# Jenkins remains on its separate hostname and port 8080 stays loopback-only.
+blogpilot.duckdns.org {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+}

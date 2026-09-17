@@ -1,20 +1,16 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: blog_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: blog_platform
-      POSTGRES_USER: blog_user
-      POSTGRES_PASSWORD: blog_secure_password_replace_in_prod
-    ports:
-      - "5433:5432"
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d blog_platform"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,12 +19,13 @@ services:
     image: redis:7-alpine
     container_name: blog_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -45,10 +42,14 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://blog_user:blog_secure_password_replace_in_prod@postgres:5432/blog_platform
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: change-this-to-a-very-secure-random-32-byte-hex-string-for-prod
-      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL must be set in .env}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      ALLOWED_CORS_ORIGINS: ${ALLOWED_CORS_ORIGINS:-["http://localhost:3000"]}
+      CSP_CONNECT_SRC: ${CSP_CONNECT_SRC:-http://localhost:3000 http://localhost:8000}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       RESET_INITIAL_ADMIN_PASSWORD: ${RESET_INITIAL_ADMIN_PASSWORD:-false}
@@ -56,21 +57,33 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
-    ports:
-      - "8000:8000"
+      ACTIVE_PROVIDER: ${ACTIVE_PROVIDER:-}
+      ACTIVE_MODEL: ${ACTIVE_MODEL:-}
+      FALLBACK_ENABLED: ${FALLBACK_ENABLED:-false}
+      FALLBACK_PROVIDER: ${FALLBACK_PROVIDER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-15}
+      MAX_COST_PER_ARTICLE_USD: ${MAX_COST_PER_ARTICLE_USD:-5.00}
+      MAX_COST_PER_PROJECT_USD: ${MAX_COST_PER_PROJECT_USD:-100.00}
+      MAX_COST_PER_USER_USD: ${MAX_COST_PER_USER_USD:-250.00}
 
   web:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     container_name: blog_web
     restart: unless-stopped
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-    ports:
-      - "3000:3000"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
 
 volumes:
   postgres_data:

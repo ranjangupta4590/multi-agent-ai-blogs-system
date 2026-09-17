@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Security
-    SECRET_KEY: str = Field(default="dev-super-secret-key-change-in-production-min-32-chars-long", min_length=32)
+    # Intentionally empty by default. Production startup refuses an unset or weak key.
+    SECRET_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     ALGORITHM: str = "HS256"
     SESSION_COOKIE_NAME: str = "ai_blog_session"
@@ -54,6 +55,8 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "http://127.0.0.1:8000",
     ]
+    # Extra trusted browser origins for the API Content-Security-Policy header.
+    CSP_CONNECT_SRC: str = "http://localhost:3000 http://localhost:8000"
 
     # LLM Provider Credentials (NEVER returned to frontend)
     OPENAI_API_KEY: Optional[str] = None

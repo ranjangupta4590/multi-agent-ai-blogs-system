@@ -36,7 +36,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data: https:; "
             "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self' http://localhost:8000 http://localhost:3000 ws:;"
+            f"connect-src 'self' {settings.CSP_CONNECT_SRC} ws: wss:;"
         )
         return response
 
@@ -45,6 +45,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI):
     """Application startup and shutdown hooks."""
     setup_logging()
+    if settings.ENVIRONMENT.lower() == "production":
+        if len(settings.SECRET_KEY) < 32:
+            raise RuntimeError("Production requires a SECRET_KEY with at least 32 characters.")
+        if not settings.SECURE_COOKIES:
+            raise RuntimeError("Production requires SECURE_COOKIES=true.")
+        if not settings.ALLOWED_CORS_ORIGINS:
+            raise RuntimeError("Production requires at least one allowed CORS origin.")
     logger.info("Initializing Multi-Agent AI Blog Generation Platform API...")
     try:
         await create_tables_and_seed()
