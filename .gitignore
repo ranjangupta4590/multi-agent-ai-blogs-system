@@ -20,7 +20,7 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
+docs/JENKINS_PRODUCTION_PIPELINE.md
 # Environment & Secrets
 .env
 .env.local

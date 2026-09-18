@@ -123,12 +123,12 @@ export default function PublicArticlePage() {
     }
   };
 
-  if (error) return <main style={{ maxWidth: "760px", margin: "0 auto", padding: "80px 24px" }}><Link href="/">← All blogs</Link><h1>Article unavailable</h1><p>{error}</p></main>;
+  if (error) return <main style={{ maxWidth: "760px", margin: "0 auto", padding: "80px 24px" }}><Link href="/">← All Blogs</Link><h1>Article unavailable</h1><p>{error}</p></main>;
   if (!article) return <main style={{ maxWidth: "760px", margin: "0 auto", padding: "80px 24px", color: "var(--text-muted)" }}>Loading article…</main>;
 
   return (
     <main style={{ maxWidth: "800px", margin: "0 auto", padding: "42px 24px 90px" }}>
-      <Link href="/" style={{ color: "var(--brand-primary)", fontWeight: 700 }}>← All blogs</Link>
+      <Link href="/" style={{ color: "var(--brand-primary)", fontWeight: 700 }}>← All Blogs</Link>
       <article style={{ marginTop: "30px" }}>
         <div style={{ color: "var(--brand-primary)", fontWeight: 800, fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>{article.organization_name}</div>
         <h1 style={{ fontSize: "clamp(2.25rem, 6vw, 4rem)", letterSpacing: "-0.05em", lineHeight: 1.05, margin: "14px 0" }}>{article.title}</h1>
