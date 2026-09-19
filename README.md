@@ -2,6 +2,21 @@
 
 An enterprise-ready, autonomous multi-agent content generation platform engineered for high reliability, source grounding, and provider independence.
 
+🌐 **Live Production Server**: [https://blogpilot.duckdns.org/](https://blogpilot.duckdns.org/)
+
+---
+
+### 🎥 Platform Demo & Autonomous Orchestration Walkthrough
+
+<p align="center">
+  <video src="assets/blogpilot.webm" controls="controls" width="100%" style="max-width: 900px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);">
+    <source src="assets/blogpilot.webm" type="video/webm">
+    Your browser does not support the video tag.
+  </video>
+</p>
+
+> 🎬 **Direct Video Link:** [`assets/blogpilot.webm`](assets/blogpilot.webm)
+
 ---
 
 ## 🌟 Core Architectural Principle
