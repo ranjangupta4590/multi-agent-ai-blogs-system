@@ -23,6 +23,8 @@ from app.models.entities import (
     AuditLog,
     Notification,
     SessionModel,
+    SubscriptionPlan,
+    CompanyTenant,
 )
 
 __all__ = [
@@ -50,4 +52,6 @@ __all__ = [
     "AuditLog",
     "Notification",
     "SessionModel",
+    "SubscriptionPlan",
+    "CompanyTenant",
 ]

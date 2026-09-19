@@ -152,15 +152,55 @@ export default function ArticleEditorWorkspacePage() {
           <Link href="/articles" className="btn btn-secondary" style={{ padding: "6px 10px", fontSize: "0.8rem" }}>
             ← Articles
           </Link>
-          <span className={`badge ${article.status === "PUBLISHED" ? "badge-success" : article.status === "APPROVED" ? "badge-info" : "badge-warning"}`}>
-            {article.status}
-          </span>
+          {article.status === "GENERATING" ? (
+            <Link
+              href={`/articles/${article.id}/workflow`}
+              className="badge badge-warning"
+              style={{
+                textDecoration: "none",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: 700,
+              }}
+              title="Click to view live agent execution stepper"
+            >
+              <span className="pulse-dot" style={{ width: "6px", height: "6px" }} />
+              GENERATING ↗
+            </Link>
+          ) : (
+            <span className={`badge ${article.status === "PUBLISHED" ? "badge-success" : article.status === "APPROVED" ? "badge-info" : "badge-warning"}`}>
+              {article.status}
+            </span>
+          )}
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
             Version {article.current_version} • {article.word_count} words • ~{article.estimated_reading_time} min read
           </span>
         </div>
 
         <div style={{ display: "flex", gap: "10px" }}>
+          {article.status === "DRAFT" && (
+            <Link
+              href={`/articles/${article.id}/workflow`}
+              className="btn btn-primary"
+              style={{ background: "var(--brand-gradient)", display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <span>✦</span> Run 11-Agent Generation
+            </Link>
+          )}
+
+          {article.status === "GENERATING" && (
+            <Link
+              href={`/articles/${article.id}/workflow`}
+              className="btn btn-primary"
+              style={{ background: "var(--brand-gradient)", display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <span className="pulse-dot" style={{ width: "8px", height: "8px", backgroundColor: "#fff" }} />
+              View Live Stepper →
+            </Link>
+          )}
+
           <button onClick={handleSaveManual} disabled={saving} className="btn btn-secondary">
             {saving ? "Saving..." : "Save Draft"}
           </button>

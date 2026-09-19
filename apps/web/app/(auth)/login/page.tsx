@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [renewing, setRenewing] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -26,6 +28,23 @@ export default function LoginPage() {
       setError(err.message || "Failed to sign in.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickRenew = async () => {
+    if (!email || !password) {
+      setError("Please enter your email and password above to renew.");
+      return;
+    }
+    setRenewing(true);
+    try {
+      await api.renewCompanyByCredentials({ email, password, extend_days: 30 });
+      setError(null);
+      alert("Subscription successfully renewed for 30 days! You can now click Sign In.");
+    } catch (err: any) {
+      setError(err.message || "Failed to renew subscription.");
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -57,8 +76,19 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="badge-danger" style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "0.85rem" }}>
-            {error}
+          <div className="badge-danger" style={{ padding: "12px 14px", borderRadius: "var(--radius-md)", marginBottom: "16px", fontSize: "0.85rem" }}>
+            <div>{error}</div>
+            {error.toLowerCase().includes("subscription expired") && (
+              <button
+                type="button"
+                onClick={handleQuickRenew}
+                disabled={renewing}
+                className="btn btn-secondary"
+                style={{ marginTop: "10px", width: "100%", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(255,255,255,0.1)" }}
+              >
+                {renewing ? "Renewing Subscription…" : "⚡ Click here to Renew Subscription (30 Days)"}
+              </button>
+            )}
           </div>
         )}
 
@@ -96,11 +126,19 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: "24px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-          Don't have an account?{" "}
-          <Link href="/register" style={{ color: "var(--brand-primary)", fontWeight: 600 }}>
-            Create Account
-          </Link>
+        <div style={{ marginTop: "24px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div>
+            Don't have an account?{" "}
+            <Link href="/register" style={{ color: "var(--brand-primary)", fontWeight: 600 }}>
+              Create Account
+            </Link>
+          </div>
+          <div>
+            Want a dedicated company studio?{" "}
+            <Link href="/admin-signup" style={{ color: "#a855f7", fontWeight: 600 }}>
+              Studio Sign Up →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

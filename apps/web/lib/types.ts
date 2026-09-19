@@ -18,6 +18,14 @@ export interface User {
   is_active: boolean;
   is_verified: boolean;
   created_at: string;
+  is_frozen?: boolean;
+  subscription_status?: "ACTIVE" | "EXPIRED" | "BLOCKED";
+  subscription_expires_at?: string;
+  blocked_reason?: string | null;
+  company_name?: string;
+  is_superadmin?: boolean;
+  plan_id?: string;
+  db_name?: string;
 }
 
 export interface Project {
@@ -130,4 +138,47 @@ export interface AnalyticsSummary {
   total_cost_usd: number;
   provider_usage: Record<string, number>;
   agent_success_rate: number;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  price_monthly_usd: number;
+  ai_provider_included: boolean;
+  max_articles_monthly: number;
+  has_fact_checking: boolean;
+  has_wordpress_syndication: boolean;
+  has_advanced_seo: boolean;
+  is_active: boolean;
+}
+
+export interface CompanyTenant {
+  id: string;
+  company_name: string;
+  slug: string;
+  admin_email: string;
+  db_name: string;
+  plan_id: string;
+  subscription_status: "ACTIVE" | "EXPIRED" | "BLOCKED";
+  subscription_expires_at: string;
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  created_at: string;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  company_tenant_id?: string | null;
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
+  amount_paise: number;
+  amount_formatted: string;
+  currency: string;
+  status: string;
+  plan_id: string;
+  plan_name: string;
+  extend_days: number;
+  created_at: string;
+  receipt_url?: string | null;
 }

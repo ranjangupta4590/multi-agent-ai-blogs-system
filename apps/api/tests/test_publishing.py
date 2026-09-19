@@ -67,3 +67,56 @@ async def test_publishing_blocks_ssrf_destinations():
             content="Content",
             slug="test",
         )
+
+
+@pytest.mark.asyncio
+async def test_superadmin_can_publish_article_publicly(test_db_session):
+    """Super Admin has full authority to draft, approve, and publish articles publicly."""
+    from app.services.article_service import ArticleService
+    from app.schemas.schemas import ArticleCreateWizard, ArticleUpdate
+
+    org = Organization(name="Master Org", slug="master-org")
+    test_db_session.add(org)
+    await test_db_session.flush()
+
+    admin_user = User(
+        email="superadmin@blogpilot.internal",
+        hashed_password="hash",
+        full_name="Super Admin",
+        role="ADMIN",
+    )
+    test_db_session.add(admin_user)
+    await test_db_session.flush()
+
+    project = Project(organization_id=org.id, name="Platform Blogs")
+    test_db_session.add(project)
+    await test_db_session.flush()
+
+    service = ArticleService(test_db_session)
+    draft = await service.create_article_draft(
+        ArticleCreateWizard(
+            project_id=project.id,
+            topic="Next-Gen Autonomous AI Agents",
+            target_keywords=["autonomous ai", "multi-agent systems"],
+            brand_voice="Authoritative",
+            guidelines="Deep technical breakdown",
+        ),
+        user=admin_user,
+        org_id=org.id,
+    )
+    assert draft.status == "DRAFT"
+
+    # Superadmin updates content and publishes
+    published = await service.update_article_content(
+        article_id=draft.id,
+        req=ArticleUpdate(
+            title="Next-Gen Autonomous AI Agents: The 2026 Guide",
+            content="# Next-Gen Autonomous AI Agents\n\nDeep dive into agent architecture...",
+            status="PUBLISHED",
+            change_summary="Superadmin approved and published",
+        ),
+        user=admin_user,
+        org_id=org.id,
+    )
+    assert published.status == "PUBLISHED"
+    assert published.title == "Next-Gen Autonomous AI Agents: The 2026 Guide"

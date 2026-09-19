@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import Depends, Header, Request
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.rbac import Permission, RoleEnum, user_has_permission
@@ -109,16 +109,36 @@ class AuthService:
         return TokenResponse(access_token=token, user_id=user.id, email=user.email, full_name=user.full_name, role=user.role, organization_id=org.id)
 
     async def login(self, req: UserLogin, ip_address: Optional[str] = None) -> TokenResponse:
+        from app.models.entities import CompanyTenant
+        from app.db.tenant_manager import get_company_engine, verify_company_access
+
         res = await self.db.execute(select(User).where(User.email == req.email.lower()))
         user = res.scalar_one_or_none()
+        company_tenant: Optional[CompanyTenant] = None
+
+        if not user:
+            # Check if this is a company tenant admin/staff
+            comp_res = await self.db.execute(select(CompanyTenant).where(CompanyTenant.admin_email == req.email.lower()))
+            company_tenant = comp_res.scalar_one_or_none()
+            if company_tenant:
+                tenant_engine = get_company_engine(company_tenant.db_connection_url)
+                factory = async_sessionmaker(bind=tenant_engine, class_=AsyncSession, expire_on_commit=False)
+                async with factory() as tenant_session:
+                    res_t = await tenant_session.execute(select(User).where(User.email == req.email.lower()))
+                    user = res_t.scalar_one_or_none()
 
         if not user or not verify_password(req.password, user.hashed_password):
             # Log failed attempt
             audit = AuditLog(
-                user_id=user.id if user else None,
+                user_id=user.id if (user and not company_tenant) else None,
+                organization_id=None,
                 action="AUTH_LOGIN_FAILED",
                 resource_type="USER",
-                details={"attempted_email": req.email},
+                details={
+                    "attempted_email": req.email,
+                    "company": company_tenant.slug if company_tenant else None,
+                    "tenant_user_id": user.id if (user and company_tenant) else None,
+                },
                 ip_address=ip_address,
             )
             self.db.add(audit)
@@ -128,29 +148,61 @@ class AuthService:
         if not user.is_active:
             raise ForbiddenError("This user account has been deactivated.")
 
-        # Find primary organization
-        org_res = await self.db.execute(
-            select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
-        )
-        org_id = org_res.scalar_one_or_none()
+        org_id = None
+        if company_tenant:
+            org_id = company_tenant.slug
+        else:
+            org_res = await self.db.execute(
+                select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
+            )
+            org_id = org_res.scalar_one_or_none()
 
-        # Successful login audit
+        # Successful login audit in master DB
         audit = AuditLog(
-            user_id=user.id,
-            organization_id=org_id,
+            user_id=user.id if not company_tenant else None,
+            organization_id=None if company_tenant else org_id,
             action="AUTH_LOGIN_SUCCESS",
             resource_type="USER",
-            resource_id=user.id,
-            details={"email": user.email},
+            resource_id=user.id if not company_tenant else company_tenant.id,
+            details={
+                "email": user.email,
+                "company": company_tenant.slug if company_tenant else None,
+                "tenant_user_id": user.id if company_tenant else None,
+            },
             ip_address=ip_address,
         )
         self.db.add(audit)
         await self.db.commit()
 
-        token = create_access_token(
-            subject=user.id,
-            claims={"email": user.email, "role": user.role, "org_id": org_id}
-        )
+        # Also record success in tenant's own database if company tenant
+        if company_tenant:
+            try:
+                tenant_engine = get_company_engine(company_tenant.db_connection_url)
+                tenant_factory = async_sessionmaker(bind=tenant_engine, class_=AsyncSession, expire_on_commit=False)
+                async with tenant_factory() as tenant_session:
+                    t_audit = AuditLog(
+                        user_id=user.id,
+                        organization_id=company_tenant.slug,
+                        action="AUTH_LOGIN_SUCCESS",
+                        resource_type="USER",
+                        resource_id=user.id,
+                        details={"email": user.email, "company": company_tenant.slug},
+                        ip_address=ip_address,
+                    )
+                    tenant_session.add(t_audit)
+                    await tenant_session.commit()
+            except Exception:
+                pass
+
+        claims = {"email": user.email, "role": user.role, "org_id": org_id}
+        if company_tenant:
+            claims.update({
+                "company_id": company_tenant.id,
+                "company_slug": company_tenant.slug,
+                "tenant_db_url": company_tenant.db_connection_url,
+            })
+
+        token = create_access_token(subject=user.id, claims=claims)
 
         return TokenResponse(
             access_token=token,
@@ -193,12 +245,32 @@ async def get_current_user(
     # Attach tenant info to request state
     request.state.current_user = user
     request.state.organization_id = payload.get("org_id")
+    request.state.company_id = payload.get("company_id")
+
+    company = getattr(request.state, "company_tenant", None)
+    if company:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        expires_at = company.subscription_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        is_expired = now > expires_at
+        setattr(user, "is_frozen", company.is_blocked or is_expired)
+        setattr(user, "subscription_status", "BLOCKED" if company.is_blocked else ("EXPIRED" if is_expired else "ACTIVE"))
+        setattr(user, "subscription_expires_at", company.subscription_expires_at)
+        setattr(user, "blocked_reason", company.blocked_reason or ("Subscription expired on " + expires_at.strftime('%Y-%m-%d') if is_expired else None))
+
     return user
 
 
 def require_permission(perm: Permission):
     """Factory creating an authorization dependency for a required permission."""
-    async def permission_checker(current_user: User = Depends(get_current_user)) -> User:
+    async def permission_checker(request: Request, current_user: User = Depends(get_current_user)) -> User:
+        company_tenant = getattr(request.state, "company_tenant", None)
+        if company_tenant:
+            from app.db.tenant_manager import verify_company_access
+            verify_company_access(company_tenant)
+
         if not user_has_permission(current_user.role, perm):
             raise ForbiddenError(f"Role '{current_user.role}' lacks required permission '{perm.value}'.")
         return current_user

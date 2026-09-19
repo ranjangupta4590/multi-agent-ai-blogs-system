@@ -143,17 +143,36 @@ function ArticlesListContent() {
                     </div>
                   </td>
                   <td style={{ padding: "14px 20px" }}>
-                    <span
-                      className={`badge ${
-                        art.status === "PUBLISHED"
-                          ? "badge-success"
-                          : art.status === "APPROVED"
-                          ? "badge-info"
-                          : "badge-warning"
-                      }`}
-                    >
-                      {art.status}
-                    </span>
+                    {art.status === "GENERATING" ? (
+                      <Link
+                        href={`/articles/${art.id}/workflow`}
+                        className="badge badge-warning"
+                        style={{
+                          textDecoration: "none",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontWeight: 700,
+                        }}
+                        title="Click to view live agent execution stepper"
+                      >
+                        <span className="pulse-dot" style={{ width: "6px", height: "6px" }} />
+                        GENERATING ↗
+                      </Link>
+                    ) : (
+                      <span
+                        className={`badge ${
+                          art.status === "PUBLISHED"
+                            ? "badge-success"
+                            : art.status === "APPROVED"
+                            ? "badge-info"
+                            : "badge-warning"
+                        }`}
+                      >
+                        {art.status}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: "14px 20px", color: "var(--text-muted)" }}>v{art.current_version}</td>
                   <td style={{ padding: "14px 20px" }}>{art.word_count}</td>

@@ -11,6 +11,10 @@ sys.path.insert(0, str(api_root))
 
 from app.db.base import Base
 from app.db.init_db import init_db
+from app.core.config import settings
+
+if not settings.SECRET_KEY:
+    settings.SECRET_KEY = "test-secret-key-32-chars-long-minimum"
 
 
 @pytest.fixture

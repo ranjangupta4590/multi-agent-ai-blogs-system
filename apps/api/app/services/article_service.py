@@ -2,12 +2,15 @@
 from datetime import datetime, timezone
 import re
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.gateway.gateway import llm_gateway
 from app.ai.workflows.workflow_engine import BlogGenerationWorkflow
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, NoProviderConfiguredError
+from app.core.logging import logger
+from app.db.session import AsyncSessionLocal
 from app.models.entities import (
+    AgentRun,
     Article,
     ArticleVersion,
     AuditLog,
@@ -120,6 +123,13 @@ class ArticleService:
     ) -> Article:
         """Run the 11-agent workflow and update the article."""
         article = await self.get_article(article_id, user, org_id)
+
+        # Check that an AI provider is configured before claiming the article
+        if not llm_gateway.is_operational():
+            raise NoProviderConfiguredError(
+                "Configure at least one AI provider to start generating content."
+            )
+
         # Atomically claim a Draft before any provider work. This prevents duplicate
         # browser requests from running and overwriting the same article concurrently.
         claimed = await self.db.execute(
@@ -133,31 +143,62 @@ class ArticleService:
             raise ConflictError("This article is already generating or has already been generated. Refresh it before starting another run.")
         await self.db.commit()
         await self.db.refresh(article)
-        
-        # Check that an AI provider is configured
-        if not llm_gateway.is_operational():
-            raise NoProviderConfiguredError(
-                "Configure at least one AI provider to start generating content."
-            )
 
-        # Retrieve project context
-        proj_res = await self.db.execute(select(Project).where(Project.id == article.project_id))
-        project = proj_res.scalar_one()
-
-
-        initial_state = {
-            "topic": article.topic,
-            "target_audience": project.target_audience or "General Readers",
-            "brand_voice": project.brand_voice or "Authoritative and engaging",
-            "content_goal": article.summary or "Educate and build domain authority",
-            "target_keywords": article.target_keywords,
-            "total_cost_usd": article.total_cost_usd,
-            "current_version": article.current_version,
-        }
-
-        workflow = BlogGenerationWorkflow()
         try:
-            final_state = await workflow.run(initial_state)
+            # Retrieve project context
+            proj_res = await self.db.execute(select(Project).where(Project.id == article.project_id))
+            project = proj_res.scalar_one()
+
+            # Clean any prior agent runs for this article run
+            await self.db.execute(delete(AgentRun).where(AgentRun.article_id == article_id))
+            await self.db.commit()
+
+            initial_state = {
+                "topic": article.topic,
+                "target_audience": project.target_audience or "General Readers",
+                "brand_voice": project.brand_voice or "Authoritative and engaging",
+                "content_goal": article.summary or "Educate and build domain authority",
+                "target_keywords": article.target_keywords,
+                "total_cost_usd": article.total_cost_usd,
+                "current_version": article.current_version,
+            }
+
+            async def on_workflow_event(event: Dict[str, Any]):
+                step_num = event.get("step_number", 1)
+                agent_name = event.get("agent_name", "")
+                evt_status = event.get("status", "")
+                duration_ms = event.get("duration_ms", 0)
+
+                try:
+                    async with AsyncSessionLocal() as session:
+                        res = await session.execute(
+                            select(AgentRun).where(
+                                AgentRun.article_id == article_id,
+                                AgentRun.step_number == step_num,
+                                AgentRun.agent_name == agent_name,
+                            )
+                        )
+                        run_obj = res.scalar_one_or_none()
+                        if not run_obj:
+                            run_obj = AgentRun(
+                                article_id=article_id,
+                                step_number=step_num,
+                                agent_name=agent_name,
+                                status=evt_status,
+                                duration_ms=duration_ms,
+                            )
+                            session.add(run_obj)
+                        else:
+                            run_obj.status = evt_status
+                            run_obj.duration_ms = duration_ms
+                            if evt_status == "COMPLETED":
+                                run_obj.completed_at = datetime.now(timezone.utc)
+                        await session.commit()
+                except Exception as e:
+                    logger.warning("Failed to persist agent run event: %s", e)
+
+            workflow = BlogGenerationWorkflow()
+            final_state = await workflow.run(initial_state, event_callback=on_workflow_event)
         except Exception:
             article.status = "DRAFT"
             await self.db.commit()
@@ -317,3 +358,32 @@ class ArticleService:
         await self.db.commit()
         await self.db.refresh(article)
         return article
+
+    async def get_workflow_progress(
+        self, article_id: str, user: User, org_id: str
+    ) -> Dict[str, Any]:
+        """Fetch live agent progression for an article."""
+        article = await self.get_article(article_id, user, org_id)
+        res = await self.db.execute(
+            select(AgentRun)
+            .where(AgentRun.article_id == article_id)
+            .order_by(AgentRun.step_number.asc())
+        )
+        runs = res.scalars().all()
+        return {
+            "article_id": article.id,
+            "status": article.status,
+            "title": article.title,
+            "word_count": article.word_count,
+            "total_cost_usd": article.total_cost_usd,
+            "current_version": article.current_version,
+            "steps": [
+                {
+                    "step_number": r.step_number,
+                    "agent_name": r.agent_name,
+                    "status": r.status,
+                    "duration_ms": r.duration_ms,
+                }
+                for r in runs
+            ],
+        }

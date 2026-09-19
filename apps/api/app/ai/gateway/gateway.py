@@ -54,6 +54,24 @@ class LLMGateway:
         else:
             self._active_provider_name = None
 
+        default_models = {
+            "OpenAI": "gpt-4o",
+            "Gemini": "gemini-3.6-flash",
+            "Claude": "claude-3-5-sonnet-20241022",
+            "Grok": "grok-2",
+        }
+        for prov_name in self._providers:
+            dm = default_models.get(prov_name)
+            if dm:
+                self._provider_models[prov_name] = dm
+
+        if settings.ACTIVE_MODEL:
+            self._active_model_name = settings.ACTIVE_MODEL.strip()
+            if self._active_provider_name:
+                self._provider_models[self._active_provider_name] = self._active_model_name
+        elif self._active_provider_name:
+            self._active_model_name = self._provider_models.get(self._active_provider_name) or default_models.get(self._active_provider_name)
+
     def register_provider(self, provider: LLMProvider, make_active: bool = False) -> None:
         """Register a provider instance (useful for runtime configuration and tests)."""
         self._providers[provider.provider_name] = provider
@@ -149,10 +167,10 @@ class LLMGateway:
         enforce_article_budget(accumulated_article_cost)
         opts = options or LLMOptions()
         provider = self._resolve_active_provider()
-        if self._active_model_name and not opts.model:
-            opts.model = self._active_model_name
         if not opts.model:
-            raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
+            opts.model = self._active_model_name or self._provider_models.get(provider.provider_name)
+        if not opts.model:
+            opts.model = "gemini-3.6-flash" if provider.provider_name == "Gemini" else "gpt-4o"
 
         try:
             response = await provider.generate(messages, opts)
@@ -187,10 +205,10 @@ class LLMGateway:
         enforce_article_budget(accumulated_article_cost)
         opts = options or LLMOptions()
         provider = self._resolve_active_provider()
-        if self._active_model_name and not opts.model:
-            opts.model = self._active_model_name
         if not opts.model:
-            raise ProviderUnavailableError("LLM Gateway", "No user-selected model is configured for the active provider.")
+            opts.model = self._active_model_name or self._provider_models.get(provider.provider_name)
+        if not opts.model:
+            opts.model = "gemini-3.6-flash" if provider.provider_name == "Gemini" else "gpt-4o"
 
         try:
             return await provider.generate_structured(messages, schema, opts)

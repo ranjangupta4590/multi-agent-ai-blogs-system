@@ -414,3 +414,73 @@ class SessionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="sessions")
+
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)  # "starter_studio", "pro_studio"
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    price_monthly_usd: Mapped[float] = mapped_column(Float, default=29.0, nullable=False)
+    ai_provider_included: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    max_articles_monthly: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    has_fact_checking: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    has_wordpress_syndication: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    has_advanced_seo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class CompanyTenant(Base):
+    __tablename__ = "company_tenants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    admin_email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    db_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    db_connection_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    
+    plan_id: Mapped[str] = mapped_column(String(50), ForeignKey("subscription_plans.id", ondelete="RESTRICT"), nullable=False)
+    subscription_status: Mapped[str] = mapped_column(String(50), default="ACTIVE", nullable=False)  # ACTIVE, EXPIRED, BLOCKED
+    subscription_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    blocked_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    plan = relationship("SubscriptionPlan")
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    company_tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("company_tenants.id", ondelete="CASCADE"), nullable=True, index=True)
+    razorpay_order_id: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True, index=True)
+    razorpay_payment_id: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True, index=True)
+    razorpay_signature: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="CREATED", nullable=False, index=True)  # CREATED, CAPTURED, FAILED, REFUNDED
+    plan_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    extend_days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    details: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    company = relationship("CompanyTenant", backref="payment_transactions")
+
+
+class ProcessedWebhookEvent(Base):
+    __tablename__ = "processed_webhook_events"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # Razorpay event_id (e.g. event_L12345)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="PROCESSED", nullable=False)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

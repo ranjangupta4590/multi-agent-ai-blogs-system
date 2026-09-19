@@ -20,9 +20,33 @@ from app.core.logging import logger
 class GeminiProvider(LLMProvider):
     """Google Gemini Adapter using the Google Generative Language REST API."""
 
-    def __init__(self, api_key: str, base_url: str = "https://generativelanguage.googleapis.com/v1beta"):
-        self.api_key = api_key
+    def __init__(self, api_key: Any, base_url: str = "https://generativelanguage.googleapis.com/v1beta"):
+        if isinstance(api_key, str):
+            self._api_keys = [k.strip() for k in api_key.split(",") if k.strip()]
+        elif isinstance(api_key, (list, tuple)):
+            self._api_keys = [str(k).strip() for k in api_key if str(k).strip()]
+        else:
+            self._api_keys = []
+        self._key_index = 0
         self.base_url = base_url.rstrip("/")
+
+    @property
+    def api_key(self) -> str:
+        """Primary API key for backward compatibility."""
+        return self._api_keys[0] if self._api_keys else ""
+
+    @property
+    def api_keys(self) -> List[str]:
+        """All configured API keys."""
+        return list(self._api_keys)
+
+    def _get_next_api_key(self) -> str:
+        """Retrieve the next API key in round-robin fashion."""
+        if not self._api_keys:
+            return ""
+        key = self._api_keys[self._key_index % len(self._api_keys)]
+        self._key_index = (self._key_index + 1) % len(self._api_keys)
+        return key
 
     @property
     def provider_name(self) -> str:
@@ -57,6 +81,8 @@ class GeminiProvider(LLMProvider):
         model = opts.model
         if not model:
             raise ProviderUnavailableError("Gemini", "A user-configured model is required.")
+        if not self._api_keys:
+            raise ProviderUnavailableError("Gemini", "No API key configured for Gemini.")
         start_time = time.time()
 
         system_instruction, contents = self._convert_messages(messages)
@@ -72,28 +98,39 @@ class GeminiProvider(LLMProvider):
         if opts.json_mode:
             payload["generationConfig"]["responseMimeType"] = "application/json"
 
-        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
-
         retryable_statuses = {429, 500, 502, 503, 504}
-        max_attempts = 3
+        max_attempts = max(5, len(self._api_keys) * 2)
+        current_key = self._get_next_api_key()
+
         try:
             async with httpx.AsyncClient(timeout=opts.timeout) as client:
                 for attempt in range(1, max_attempts + 1):
+                    url = f"{self.base_url}/models/{model}:generateContent?key={current_key}"
                     resp = await client.post(url, json=payload)
                     if resp.status_code == 200:
                         break
                     if resp.status_code in retryable_statuses and attempt < max_attempts:
-                        delay_seconds = 2 ** (attempt - 1)
-                        logger.warning(
-                            "Gemini returned transient status %s; retrying request %s/%s in %ss",
-                            resp.status_code, attempt, max_attempts, delay_seconds
-                        )
+                        delay_seconds = min(8, 2 ** attempt)
+                        if len(self._api_keys) > 1:
+                            prev_masked = current_key[:6] + "..." if len(current_key) > 6 else current_key
+                            current_key = self._get_next_api_key()
+                            next_masked = current_key[:6] + "..." if len(current_key) > 6 else current_key
+                            logger.warning(
+                                "Gemini returned status %s on key %s; rotating to next pooled key %s (attempt %s/%s) in %ss",
+                                resp.status_code, prev_masked, next_masked, attempt, max_attempts, delay_seconds
+                            )
+                        else:
+                            logger.warning(
+                                "Gemini returned transient status %s (high demand/rate limit); retrying request %s/%s in %ss",
+                                resp.status_code, attempt, max_attempts, delay_seconds
+                            )
                         await asyncio.sleep(delay_seconds)
                         continue
-                    logger.error("Gemini generation failed with status %s", resp.status_code)
+                    error_detail = resp.text[:200] if resp.text else f"status {resp.status_code}"
+                    logger.error("Gemini generation failed with status %s: %s", resp.status_code, error_detail)
                     raise ProviderUnavailableError(
                         "Gemini",
-                        f"API returned status {resp.status_code} after {attempt} attempt(s)"
+                        f"API returned status {resp.status_code} after {attempt} attempt(s): {error_detail}"
                     )
 
                 data = resp.json()
@@ -162,13 +199,20 @@ class GeminiProvider(LLMProvider):
 
     async def health_check(self) -> HealthStatus:
         start_time = time.time()
+        if not self._api_keys:
+            return HealthStatus(is_healthy=False, latency_ms=0, message="No Gemini API keys configured")
         url = f"{self.base_url}/models?key={self.api_key}"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url)
                 latency_ms = int((time.time() - start_time) * 1000)
                 if resp.status_code == 200:
-                    return HealthStatus(is_healthy=True, latency_ms=latency_ms, message="Gemini API reachable")
+                    key_count_str = f" ({len(self._api_keys)} keys pooled)" if len(self._api_keys) > 1 else ""
+                    return HealthStatus(
+                        is_healthy=True,
+                        latency_ms=latency_ms,
+                        message=f"Gemini API reachable{key_count_str}"
+                    )
                 return HealthStatus(is_healthy=False, latency_ms=latency_ms, message=f"Status {resp.status_code}")
         except Exception as e:
             return HealthStatus(is_healthy=False, latency_ms=0, message=str(e))

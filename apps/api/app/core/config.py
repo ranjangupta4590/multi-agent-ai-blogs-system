@@ -97,5 +97,11 @@ class Settings(BaseSettings):
         "fe80::/10",         # IPv6 Link-local
     ]
 
+    # Razorpay Payment Gateway & Webhook
+    RAZORPAY_KEY_ID: Optional[str] = None
+    RAZORPAY_KEY_SECRET: Optional[str] = None
+    RAZORPAY_WEBHOOK_SECRET: Optional[str] = None
+    RAZORPAY_CURRENCY: str = "INR"
+
 
 settings = Settings()

@@ -86,6 +86,7 @@ export const api = {
   updateArticle: (id: string, body: any) => request<any>(`/articles/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   generateArticle: (id: string) => request<any>(`/articles/${id}/generate`, { method: "POST" }),
   cancelArticleGeneration: (id: string) => request<any>(`/articles/${id}/cancel`, { method: "POST" }),
+  getWorkflowProgress: (id: string) => request<any>(`/articles/${id}/workflow/progress`),
   deleteArticle: (id: string) => request<any>(`/articles/${id}`, { method: "DELETE" }),
   getArticleVersions: (id: string) => request<any[]>(`/articles/${id}/versions`),
   restoreVersion: (id: string, versionNumber: number) =>
@@ -112,4 +113,40 @@ export const api = {
     }),
   getAuditLogs: (limit: number = 100) => request<any[]>(`/admin/audit-logs?limit=${limit}`),
   getAnalytics: () => request<any>("/admin/analytics"),
+
+  // Superadmin Plans & Company Databases
+  getSubscriptionPlans: () => request<any[]>("/superadmin/plans"),
+  updateSubscriptionPlan: (planId: string, body: any) =>
+    request<any>(`/superadmin/plans/${planId}`, { method: "PUT", body: JSON.stringify(body) }),
+  studioSignup: (body: any) =>
+    request<any>("/superadmin/signup", { method: "POST", body: JSON.stringify(body) }),
+  getCompanies: () => request<any[]>("/superadmin/companies"),
+  freezeCompany: (companyId: string, reason?: string) =>
+    request<any>(`/superadmin/companies/${companyId}/freeze`, { method: "POST", body: JSON.stringify({ reason }) }),
+  unfreezeCompany: (companyId: string) =>
+    request<any>(`/superadmin/companies/${companyId}/unfreeze`, { method: "POST" }),
+  renewCompany: (companyId: string, extend_days: number = 30, plan_id?: string) =>
+    request<any>(`/superadmin/companies/${companyId}/renew`, {
+      method: "POST",
+      body: JSON.stringify({ extend_days, plan_id }),
+    }),
+  renewCompanyByCredentials: (body: { email: string; password: string; extend_days?: number; plan_id?: string }) =>
+    request<any>("/superadmin/renew-by-credentials", { method: "POST", body: JSON.stringify(body) }),
+  getMySubscription: () => request<any>("/superadmin/my-subscription"),
+  renewMySubscription: (body: { password: string; extend_days?: number; plan_id?: string }) =>
+    request<any>("/superadmin/renew-my-subscription", { method: "POST", body: JSON.stringify(body) }),
+
+  // Razorpay Gateway
+  getRazorpayConfig: () => request<any>("/payments/razorpay/config"),
+  createRazorpaySignupOrder: (body: { company_name: string; email: string; plan_id: string }) =>
+    request<any>("/payments/razorpay/create-signup-order", { method: "POST", body: JSON.stringify(body) }),
+  createRazorpayOrder: (body: { plan_id: string; extend_days?: number }) =>
+    request<any>("/payments/razorpay/create-order", { method: "POST", body: JSON.stringify(body) }),
+  verifyRazorpayPayment: (body: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
+    request<any>("/payments/razorpay/verify-payment", { method: "POST", body: JSON.stringify(body) }),
+  getMyPaymentTransactions: () => request<any[]>("/payments/transactions/my"),
+  getReceiptUrl: (transactionId: string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+    return `${API_BASE}/payments/receipt/${transactionId}?token=${encodeURIComponent(token || "")}`;
+  },
 };

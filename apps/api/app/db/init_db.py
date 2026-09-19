@@ -121,6 +121,40 @@ async def init_db(session: AsyncSession) -> None:
         session.add(org)
         await session.flush()
 
+    # 2.1 Seed Default Subscription Plans
+    from app.models.entities import SubscriptionPlan
+    plans_seed = [
+        SubscriptionPlan(
+            id="starter_studio",
+            name="Starter Studio",
+            description="Bring your own API key. Ideal for independent publishers.",
+            price_monthly_usd=29.0,
+            ai_provider_included=False,
+            max_articles_monthly=10,
+            has_fact_checking=False,
+            has_wordpress_syndication=False,
+            has_advanced_seo=False,
+            is_active=True,
+        ),
+        SubscriptionPlan(
+            id="pro_studio",
+            name="Pro Studio",
+            description="Full 11-agent AI Gateway included with automated CMS syndication.",
+            price_monthly_usd=79.0,
+            ai_provider_included=True,
+            max_articles_monthly=50,
+            has_fact_checking=True,
+            has_wordpress_syndication=True,
+            has_advanced_seo=True,
+            is_active=True,
+        ),
+    ]
+    for p in plans_seed:
+        plan_check = await session.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == p.id))
+        if not plan_check.scalar_one_or_none():
+            session.add(p)
+            await session.flush()
+
     # 3. Bootstrap administrator from server-only environment variables.
     # No default password is embedded in source code or sent to the public UI.
     if settings.INITIAL_ADMIN_EMAIL and settings.INITIAL_ADMIN_PASSWORD:
@@ -217,6 +251,11 @@ async def create_tables_and_seed() -> None:
     """Create all tables and seed data."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE payment_transactions ALTER COLUMN company_tenant_id DROP NOT NULL;"))
+        except Exception:
+            pass
 
     async with AsyncSessionLocal() as session:
         await init_db(session)
@@ -228,7 +267,14 @@ async def create_tables_and_seed() -> None:
             if provider.name in llm_gateway.get_configured_providers() and provider.default_model.strip():
                 llm_gateway.set_provider_model(provider.name, provider.default_model)
 
-        active_provider = next((provider for provider in providers if provider.is_active), None)
+        active_provider = next(
+            (provider for provider in providers if provider.is_active and provider.name in llm_gateway.get_configured_providers()),
+            None
+        )
+        if not active_provider:
+            configured = llm_gateway.get_configured_providers()
+            active_provider = next((provider for provider in providers if provider.name in configured), None)
+
         if (
             active_provider
             and active_provider.name in llm_gateway.get_configured_providers()

@@ -5,16 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: "▦", group: "Content studio" },
-  { label: "Projects", href: "/projects", icon: "▱" },
-  { label: "Articles", href: "/articles", icon: "✦" },
-  { label: "Sources & Grounding", href: "/sources", icon: "⌕" },
-  { label: "SEO Intelligence", href: "/seo", icon: "↗" },
-  { label: "Public Publishing", href: "/publishing", icon: "◉" },
-  { label: "AI Providers", href: "/settings/providers", icon: "✺", group: "System & operations" },
-  { label: "Admin Console", href: "/admin", icon: "◇", adminOnly: true },
-];
+import { User } from "@/lib/types";
 
 type SidebarProps = {
   collapsed: boolean;
@@ -25,13 +16,27 @@ type SidebarProps = {
 
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
-  const [role, setRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
-    api.getMe().then((user) => setRole(user.role)).catch(() => setRole(null));
+    api.getMe().then(setCurrentUser).catch(() => setCurrentUser(null));
   }, []);
 
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || role === "ADMIN");
+  const visibleNavItems = [
+    { label: "Dashboard", href: "/dashboard", icon: "▦", group: "Content studio" },
+    { label: "Projects", href: "/projects", icon: "▱" },
+    { label: "Articles", href: "/articles", icon: "✦" },
+    { label: "Sources & Grounding", href: "/sources", icon: "⌕" },
+    { label: "SEO Intelligence", href: "/seo", icon: "↗" },
+    { label: "Public Publishing", href: "/publishing", icon: "◉" },
+    { label: "AI Providers", href: "/settings/providers", icon: "✺", group: "System & operations" },
+    ...(currentUser?.role === "ADMIN"
+      ? [
+          { label: "Admin Console", href: "/admin", icon: "◇" },
+          ...(currentUser?.is_superadmin ? [] : [{ label: "Subscription", href: "/admin/subscription", icon: "⚡" }]),
+        ]
+      : []),
+  ];
 
   return (
     <aside className={`app-sidebar ${collapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`} aria-label="Main navigation">

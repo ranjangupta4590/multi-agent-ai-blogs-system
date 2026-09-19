@@ -90,5 +90,23 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserOut)
-async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+async def get_me(request: Request, current_user: User = Depends(get_current_user)):
+    company = getattr(request.state, "company_tenant", None)
+    is_superadmin = (company is None and current_user.role == "ADMIN")
+    return UserOut(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        is_active=current_user.is_active,
+        is_verified=current_user.is_verified,
+        created_at=current_user.created_at,
+        is_frozen=getattr(current_user, "is_frozen", False),
+        subscription_status=getattr(current_user, "subscription_status", "ACTIVE"),
+        subscription_expires_at=getattr(current_user, "subscription_expires_at", None),
+        blocked_reason=getattr(current_user, "blocked_reason", None),
+        company_name=company.company_name if company else None,
+        is_superadmin=is_superadmin,
+        plan_id=company.plan_id if company else None,
+        db_name=company.db_name if company else None,
+    )

@@ -40,6 +40,14 @@ class UserOut(SchemaBase):
     is_active: bool
     is_verified: bool
     created_at: datetime
+    is_frozen: bool = False
+    subscription_status: Optional[str] = "ACTIVE"
+    subscription_expires_at: Optional[datetime] = None
+    blocked_reason: Optional[str] = None
+    company_name: Optional[str] = None
+    is_superadmin: bool = False
+    plan_id: Optional[str] = None
+    db_name: Optional[str] = None
 
 
 class UserRoleUpdate(BaseModel):
@@ -325,4 +333,125 @@ class AdminUserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(..., min_length=2, max_length=255)
     role: str = Field(..., description="ADMIN or PORTAL_USER")
+
+
+# --- MULTI-TENANT & SUBSCRIPTION SCHEMAS ---
+class StudioSignupRequest(BaseModel):
+    company_name: str = Field(..., min_length=2, max_length=255)
+    full_name: str = Field(..., min_length=2, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    plan_id: str = Field(default="starter_studio")
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    razorpay_signature: Optional[str] = None
+
+
+class SubscriptionPlanOut(SchemaBase):
+    id: str
+    name: str
+    description: Optional[str] = None
+    price_monthly_usd: float
+    ai_provider_included: bool
+    max_articles_monthly: int
+    has_fact_checking: bool
+    has_wordpress_syndication: bool
+    has_advanced_seo: bool
+    is_active: bool
+
+
+class SubscriptionPlanUpdate(BaseModel):
+    price_monthly_usd: Optional[float] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    ai_provider_included: Optional[bool] = None
+    max_articles_monthly: Optional[int] = None
+    has_fact_checking: Optional[bool] = None
+    has_wordpress_syndication: Optional[bool] = None
+    has_advanced_seo: Optional[bool] = None
+
+
+class CompanyTenantOut(SchemaBase):
+    id: str
+    company_name: str
+    slug: str
+    admin_email: str
+    db_name: str
+    plan_id: str
+    subscription_status: str
+    subscription_expires_at: datetime
+    is_blocked: bool
+    blocked_reason: Optional[str] = None
+    created_at: datetime
+
+
+class CompanyFreezeRequest(BaseModel):
+    reason: Optional[str] = "Blocked by administrator"
+
+
+class CompanyRenewRequest(BaseModel):
+    plan_id: Optional[str] = None
+    extend_days: int = 30
+
+
+class CompanySelfRenewRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    password: str
+    plan_id: Optional[str] = None
+    extend_days: int = 30
+
+
+class RazorpayCreateOrderRequest(BaseModel):
+    plan_id: str
+    extend_days: int = 30
+
+
+class RazorpayOrderResponse(SchemaBase):
+    order_id: str
+    amount_paise: int
+    currency: str
+    key_id: str
+    company_name: str
+    admin_email: str
+    plan_name: str
+    extend_days: int
+    is_test_mode: bool = False
+
+
+class RazorpayVerifyPaymentRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+class RazorpayVerifyPaymentResponse(SchemaBase):
+    success: bool
+    message: str
+    company_name: str
+    subscription_status: str
+    subscription_expires_at: datetime
+    plan_id: str
+
+
+class RazorpayCreateSignupOrderRequest(BaseModel):
+    company_name: str = Field(..., min_length=2, max_length=255)
+    email: EmailStr
+    plan_id: str = Field(default="starter_studio")
+
+
+class PaymentTransactionOut(SchemaBase):
+    id: str
+    company_tenant_id: Optional[str] = None
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    amount_paise: int
+    amount_formatted: str
+    currency: str
+    status: str
+    plan_id: str
+    plan_name: str
+    extend_days: int
+    created_at: datetime
+    receipt_url: Optional[str] = None
+
 

@@ -99,6 +99,19 @@ async def generate_article_content(
     return await service.generate_article_content(article_id, current_user, org_id)
 
 
+@router.get("/{article_id}/workflow/progress")
+async def get_workflow_progress(
+    article_id: str,
+    request: Request,
+    current_user: User = Depends(require_permission(Permission.ARTICLES_READ)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve real-time agent workflow execution progress for an article."""
+    org_id = request.state.organization_id
+    service = ArticleService(db)
+    return await service.get_workflow_progress(article_id, current_user, org_id)
+
+
 @router.get("/{article_id}/versions", response_model=List[ArticleVersionOut])
 async def get_article_versions(
     article_id: str,

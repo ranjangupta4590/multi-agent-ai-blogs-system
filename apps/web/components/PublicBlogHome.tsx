@@ -84,22 +84,99 @@ export default function PublicBlogHome() {
                 <span className="profile-chevron" style={{ fontSize: "12px", color: "var(--text-muted)" }}>⌄</span>
               </button>
               {profileOpen && (
-                <div className="profile-popover" style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 100 }}>
+                <div className="profile-popover" style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 100, minWidth: "200px" }}>
                   <div className="profile-popover-identity">
                     <strong>{user.full_name}</strong>
                     <small>{user.email || user.role}</small>
                   </div>
+                  {user.role === "PUBLIC_USER" ? (
+                    <Link
+                      href="/admin-signup"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "8px 12px",
+                        color: "var(--brand-primary)",
+                        textDecoration: "none",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        borderBottom: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <span>✦</span> Upgrade to Studio (Sign up)
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/dashboard"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "8px 12px",
+                        color: "var(--text-primary)",
+                        textDecoration: "none",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        borderBottom: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <span>✦</span> Studio Dashboard
+                    </Link>
+                  )}
+                  {user.role === "ADMIN" && (
+                    <>
+                      <Link
+                        href="/admin/companies"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "8px 12px",
+                          color: "var(--text-primary)",
+                          textDecoration: "none",
+                          fontSize: "0.85rem",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        <span>🏛</span> Manage Companies
+                      </Link>
+                      <Link
+                        href="/admin"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "8px 12px",
+                          color: "var(--text-primary)",
+                          textDecoration: "none",
+                          fontSize: "0.85rem",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        <span>⚙</span> Admin Console
+                      </Link>
+                    </>
+                  )}
                   <button className="profile-logout" onClick={handleLogout}>
                     <span aria-hidden="true">↪</span> Log out
                   </button>
                 </div>
               )}
             </div>
-            <Link href="/admin-signup" className="btn btn-secondary">Studio sign up</Link>
+            {user.role === "PUBLIC_USER" ? (
+              <Link href="/admin-signup" className="btn btn-primary">
+                Studio sign up
+              </Link>
+            ) : (
+              <Link href="/dashboard" className="btn btn-primary">
+                Studio Dashboard →
+              </Link>
+            )}
           </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <Link href="/login" className="btn btn-secondary">Studio sign in</Link>
+            <Link href="/login" className="btn btn-secondary">Sign in</Link>
             <Link href="/admin-signup" className="btn btn-primary">Studio sign up</Link>
           </div>
         )}

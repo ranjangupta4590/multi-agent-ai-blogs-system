@@ -8,7 +8,7 @@ export default function ProvidersSettingsPage() {
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeModalProvider, setActiveModalProvider] = useState<string | null>(null);
-  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeys, setApiKeys] = useState<string[]>([""]);
   const [selectedModel, setSelectedModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [healthStatus, setHealthStatus] = useState<Record<string, string>>({});
@@ -39,15 +39,34 @@ export default function ProvidersSettingsPage() {
     }
   };
 
+  const handleAddKey = () => {
+    setApiKeys((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveKey = (index: number) => {
+    setApiKeys((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleKeyChange = (index: number, value: string) => {
+    setApiKeys((prev) => {
+      const copy = [...prev];
+      copy[index] = value;
+      return copy;
+    });
+  };
+
   const handleConfigureSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeModalProvider) return;
     setSubmitting(true);
     try {
-      await api.configureProvider(activeModalProvider, apiKeyInput.trim() || undefined, selectedModel || undefined);
-      setFeedback({ type: "success", text: `${activeModalProvider} credentials configured securely.` });
+      const validKeys = apiKeys.map((k) => k.trim()).filter(Boolean);
+      const keyPayload = validKeys.length > 0 ? validKeys.join(",") : undefined;
+      await api.configureProvider(activeModalProvider, keyPayload, selectedModel || undefined);
+      const pooledInfo = validKeys.length > 1 ? ` with ${validKeys.length} pooled keys` : "";
+      setFeedback({ type: "success", text: `${activeModalProvider} credentials configured securely${pooledInfo}.` });
       setActiveModalProvider(null);
-      setApiKeyInput("");
+      setApiKeys([""]);
       await loadProviders();
     } catch (err: any) {
       setFeedback({ type: "error", text: err.message || "Failed to save configuration" });
@@ -203,6 +222,7 @@ export default function ProvidersSettingsPage() {
                         onClick={() => {
                           setActiveModalProvider(p.name);
                           setSelectedModel(p.default_model);
+                          setApiKeys([""]);
                         }}
                         className="btn btn-secondary"
                         style={{ flex: 1, fontSize: "0.75rem", padding: "6px" }}
@@ -216,6 +236,7 @@ export default function ProvidersSettingsPage() {
                     onClick={() => {
                       setActiveModalProvider(p.name);
                       setSelectedModel(p.default_model);
+                      setApiKeys([""]);
                     }}
                     className="btn btn-primary"
                   >
@@ -237,22 +258,64 @@ export default function ProvidersSettingsPage() {
                 Configure {activeModalProvider}
               </h2>
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                Stored API keys are never displayed again. Leave the key field blank to keep the current server-side connection and update only the model.
+                Stored API keys are never displayed again. Leave blank to keep current server-side credentials.
               </p>
             </div>
 
             <form onSubmit={handleConfigureSubmit} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "6px" }}>
-                  Replace API Key (optional)
-                </label>
-                <input
-                  type="password"
-                  className="input"
-                  placeholder={`Enter a new ${activeModalProvider} API Key only to replace it`}
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                    API Key{apiKeys.length > 1 ? `s (${apiKeys.length})` : " (optional)"}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddKey}
+                    className="btn btn-secondary"
+                    style={{ fontSize: "0.75rem", padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                  >
+                    <span>+</span> Add another key
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {apiKeys.map((k, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <input
+                        type="password"
+                        className="input"
+                        placeholder={
+                          apiKeys.length === 1
+                            ? `Enter ${activeModalProvider} API Key`
+                            : `API Key #${idx + 1}`
+                        }
+                        value={k}
+                        onChange={(e) => handleKeyChange(idx, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      {apiKeys.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveKey(idx)}
+                          className="btn btn-secondary"
+                          title="Remove this key"
+                          style={{
+                            padding: "8px 12px",
+                            color: "var(--accent-danger)",
+                            borderColor: "var(--border-subtle)",
+                            fontSize: "0.9rem",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>

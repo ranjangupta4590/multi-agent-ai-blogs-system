@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { AIProvider, AnalyticsSummary, Article, Project } from "@/lib/types";
+import { AIProvider, AnalyticsSummary, Article, Project, User } from "@/lib/types";
 
 const pipeline = [
   ["Research Planner", "Topic & search strategy", "0.4s"], ["Researcher", "SSRF-safe evidence collection", "1.2s"],
@@ -14,12 +14,14 @@ const pipeline = [
 ];
 
 export default function DashboardPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
 
   useEffect(() => {
+    api.getMe().then(setCurrentUser).catch(() => {});
     async function loadData() {
       try {
         const [provList, projList, analyticsData] = await Promise.all([
@@ -37,7 +39,7 @@ export default function DashboardPage() {
     ["Total articles", analytics?.total_articles ?? articles.length, `${analytics?.published_articles ?? 0} publicly published`, "✎"],
     ["Active projects", projects.length, "Multi-tenant isolated", "▱"],
     ["AI agent runs", analytics?.total_llm_calls ?? 0, "Tracked through the LLM gateway", "✺"],
-    ["Estimated AI cost", `$${analytics?.total_cost_usd ? analytics.total_cost_usd.toFixed(4) : "0.0000"}`, "Current tracked usage", "◈"],
+    // ["Estimated AI cost", `$${analytics?.total_cost_usd ? analytics.total_cost_usd.toFixed(4) : "0.0000"}`, "Current tracked usage", "◈"],
   ];
 
   return (
@@ -57,7 +59,18 @@ export default function DashboardPage() {
 
       <section className="dashboard-heading">
         <div><span className="eyebrow">Content operations</span><h1>Platform overview</h1><p>Research, verification, editorial review, and public publishing in one focused studio.</p></div>
-        <div className="dashboard-heading-actions"><Link href="/projects" className="btn btn-secondary">Manage projects</Link><Link href="/articles/new" className="btn btn-primary">✦ New article</Link></div>
+        <div className="dashboard-heading-actions">
+          {currentUser?.is_frozen ? (
+            <button disabled className="btn btn-secondary" style={{ opacity: 0.7, cursor: "not-allowed" }} title="Workspace frozen. Renew plan above.">
+              🔒 Workspace Actions Locked
+            </button>
+          ) : (
+            <>
+              <Link href="/projects" className="btn btn-secondary">Manage projects</Link>
+              <Link href="/articles/new" className="btn btn-primary">✦ New article</Link>
+            </>
+          )}
+        </div>
       </section>
 
       <section className="metric-grid">
@@ -67,9 +80,24 @@ export default function DashboardPage() {
       <section className="dashboard-content-grid">
         <article className="card dashboard-articles-card">
           <header className="section-heading"><div><span className="eyebrow">Library</span><h2>Recent articles</h2><p>Generated drafts, reviews, and published stories.</p></div><Link href="/articles">View all <span>→</span></Link></header>
-          {articles.length === 0 ? <div className="dashboard-empty"><span>✦</span><h3>No articles yet</h3><p>Create your first article, then BlogPilot will guide it through the full review pipeline.</p><Link href="/articles/new" className="btn btn-primary">Create first article</Link></div> : <div className="dashboard-article-list">
-            {articles.map((article) => <Link key={article.id} href={`/articles/${article.id}`} className="dashboard-article-row"><div><span className={`article-status status-${article.status.toLowerCase()}`}>{article.status.replace("_", " ")}</span><h3>{article.title}</h3><p>v{article.current_version} · {article.word_count} words · {article.estimated_reading_time} min read</p></div><span className="row-arrow">→</span></Link>)}
-          </div>}
+          {currentUser?.is_frozen ? (
+            <div className="dashboard-empty" style={{ padding: "36px 20px" }}>
+              <span style={{ fontSize: "2rem" }}>🔒</span>
+              <h3>Workspace Frozen / Access Restricted</h3>
+              <p style={{ maxWidth: "440px", margin: "8px auto" }}>
+                {currentUser.blocked_reason || "Your company subscription has expired or has been frozen. All article creation and AI pipelines are locked."}
+              </p>
+              <p style={{ color: "var(--brand-primary)", fontWeight: 700, fontSize: "0.9rem" }}>
+                Please use the "⚡ Purchase / Renew Plan" button at the top to restore access.
+              </p>
+            </div>
+          ) : articles.length === 0 ? (
+            <div className="dashboard-empty"><span>✦</span><h3>No articles yet</h3><p>Create your first article, then BlogPilot will guide it through the full review pipeline.</p><Link href="/articles/new" className="btn btn-primary">Create first article</Link></div>
+          ) : (
+            <div className="dashboard-article-list">
+              {articles.map((article) => <Link key={article.id} href={`/articles/${article.id}`} className="dashboard-article-row"><div><span className={`article-status status-${article.status.toLowerCase()}`}>{article.status.replace("_", " ")}</span><h3>{article.title}</h3><p>v{article.current_version} · {article.word_count} words · {article.estimated_reading_time} min read</p></div><span className="row-arrow">→</span></Link>)}
+            </div>
+          )}
         </article>
         <aside className="card pipeline-card">
           <header className="section-heading compact"><div><span className="eyebrow">Orchestration</span><h2>11-agent pipeline</h2><p>Deterministic, source-aware workflow.</p></div><span className="pipeline-live">Ready</span></header>
